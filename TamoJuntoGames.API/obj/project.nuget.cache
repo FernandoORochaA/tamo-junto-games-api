@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "dgSpecHash": "6nQruzX40I8=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\ferna\\Documents\\Projetos\\TamoJuntoGames.API\\TamoJuntoGames.API\\TamoJuntoGames.API.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\ferna\\.nuget\\packages\\microsoft.aspnetcore.openapi\\9.0.10\\microsoft.aspnetcore.openapi.9.0.10.nupkg.sha512",
+    "C:\\Users\\ferna\\.nuget\\packages\\microsoft.openapi\\1.6.17\\microsoft.openapi.1.6.17.nupkg.sha512"
+  ],
+  "logs": []
+}

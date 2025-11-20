@@ -1,0 +1,6 @@
+@TamoJuntoGames.API_HostAddress = http://localhost:5197
+
+GET {{TamoJuntoGames.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
