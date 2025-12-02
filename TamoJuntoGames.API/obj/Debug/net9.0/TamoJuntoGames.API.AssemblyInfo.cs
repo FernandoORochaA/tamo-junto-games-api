@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("TamoJuntoGames.API")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4955385b955678799d8b167e95ad37c7ef50a9be")]
 [assembly: System.Reflection.AssemblyProductAttribute("TamoJuntoGames.API")]
 [assembly: System.Reflection.AssemblyTitleAttribute("TamoJuntoGames.API")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

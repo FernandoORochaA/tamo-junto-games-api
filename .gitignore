@@ -1,0 +1,16 @@
+# Visual Studio
+.vs/
+
+# Build outputs
+bin/
+obj/
+
+# Temp
+*.tmp
+*.log
+
+# VS config
+*.user
+*.suo
+*.cache
+*.sln.docstates

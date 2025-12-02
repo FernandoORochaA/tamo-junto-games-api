@@ -1,0 +1,16 @@
+﻿### Testar GET (lista de usuários)
+GET http://localhost:5197/api/usuarios
+Accept: application/json
+
+### Testar POST (criar usuário)
+POST http://localhost:5197/api/usuarios
+Content-Type: application/json
+
+{
+  "nomeCompleto": "Fernando Rocha",
+  "apelido": "Napers",
+  "email": "fernando@example.com",
+  "confirmarEmail": "fernando@example.com",
+  "senha": "SenhaForte123",
+  "confirmarSenha": "SenhaForte123"
+}
