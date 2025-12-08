@@ -35,3 +35,14 @@ Accept: application/json
 
 ### Listar usuários depois
 GET http://localhost:5197/api/usuarios
+Accept: application/json
+
+
+### Testar LOGIN
+POST http://localhost:5197/api/usuarios/login
+Content-Type: application/json
+
+{
+  "email": "fernando@example.com",
+  "senha": "SenhaForte123"
+}

@@ -126,6 +126,31 @@ namespace TamoJuntoGames.API.Controllers
             );
         }
 
+        // POST: api/usuarios/login
+        [HttpPost("login")]
+        public ActionResult<UsuarioRespostaDTO> Login([FromBody] LoginUsuarioDTO dto)
+        {
+            // 1. Validar se veio email e senha
+            if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Senha))
+                return BadRequest(new { mensagem = "E-mail e senha são obrigatórios." });
+
+            // 2. Procurar usuário com esse email e senha
+            var usuario = Usuarios.FirstOrDefault(u =>
+                u.Email == dto.Email &&
+                u.Senha == dto.Senha
+            );
+
+            // 3. Se não encontrar, devolve 401 (não autorizado)
+            if (usuario == null)
+                return Unauthorized(new { mensagem = "E-mail ou senha inválidos." });
+
+            // 4. Se encontrar, monta DTO de resposta (sem senha)
+            var resposta = ParaResposta(usuario);
+
+            // 5. Devolve 200 OK com os dados do usuário logado
+            return Ok(resposta);
+        }
+
         // Converte o Model Usuario para o DTO de resposta
         private static UsuarioRespostaDTO ParaResposta(Usuario usuario)
         {
