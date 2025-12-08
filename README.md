@@ -62,6 +62,7 @@ Exemplo de criação (POST):
   "senha": "SenhaForte123",
   "confirmarSenha": "SenhaForte123"
 }
+```
 
 ---
 
