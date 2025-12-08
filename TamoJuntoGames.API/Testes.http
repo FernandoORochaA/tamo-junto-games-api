@@ -1,8 +1,4 @@
-﻿### Testar GET (lista de usuários)
-GET http://localhost:5197/api/usuarios
-Accept: application/json
-
-### Testar POST (criar usuário)
+﻿### Criar usuário
 POST http://localhost:5197/api/usuarios
 Content-Type: application/json
 
@@ -14,3 +10,28 @@ Content-Type: application/json
   "senha": "SenhaForte123",
   "confirmarSenha": "SenhaForte123"
 }
+
+
+### Listar usuários
+GET http://localhost:5197/api/usuarios
+Accept: application/json
+
+
+### Atualizar usuário (PUT)
+PUT http://localhost:5197/api/usuarios/1
+Content-Type: application/json
+
+{
+  "nomeCompleto": "Fernando Rocha Atualizado",
+  "apelido": "Napers2",
+  "email": "fernando.novo@example.com"
+}
+
+
+### Deletar usuário 1
+DELETE http://localhost:5197/api/usuarios/1
+Accept: application/json
+
+
+### Listar usuários depois
+GET http://localhost:5197/api/usuarios
