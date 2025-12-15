@@ -5,8 +5,8 @@ Content-Type: application/json
 {
   "nomeCompleto": "Fernando Rocha",
   "apelido": "Napers",
-  "email": "fernando@example.com",
-  "confirmarEmail": "fernando@example.com",
+  "email": "napers@example.com",
+  "confirmarEmail": "napers@example.com",
   "senha": "SenhaForte123",
   "confirmarSenha": "SenhaForte123"
 }

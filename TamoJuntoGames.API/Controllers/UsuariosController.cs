@@ -1,6 +1,8 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using TamoJuntoGames.API.Models;
+using Microsoft.EntityFrameworkCore;
+using TamoJuntoGames.API.Data;
 using TamoJuntoGames.API.DTOs;
+using TamoJuntoGames.API.Models;
 
 namespace TamoJuntoGames.API.Controllers
 {
@@ -8,16 +10,25 @@ namespace TamoJuntoGames.API.Controllers
     [Route("api/[controller]")]
     public class UsuariosController : ControllerBase
     {
-        // "Banco" em memória — testes
-        private static readonly List<Usuario> Usuarios = new();
-        private static int _proximoId = 1;
+        // DbContext injetado — agora o "banco" é o SQLite via EF Core (não é mais lista em memória)
+        private readonly AppDbContext _context;
+
+        public UsuariosController(AppDbContext context)
+        {
+            _context = context;
+        }
 
         // GET: api/usuarios
         [HttpGet]
-        public ActionResult<IEnumerable<UsuarioRespostaDTO>> GetTodos()
+        public async Task<ActionResult<IEnumerable<UsuarioRespostaDTO>>> GetTodos()
         {
-            // Converte cada Usuario da lista para UsuarioRespostaDTO
-            var resposta = Usuarios
+            // 1. Buscar usuários no banco (SQLite)
+            var usuarios = await _context.Usuarios
+                .AsNoTracking()
+                .ToListAsync();
+
+            // 2. Converter para DTO (sem senha) fora do SQL
+            var resposta = usuarios
                 .Select(ParaResposta)
                 .ToList();
 
@@ -26,14 +37,17 @@ namespace TamoJuntoGames.API.Controllers
 
         // GET: api/usuarios/{id}
         [HttpGet("{id:int}")]
-        public ActionResult<UsuarioRespostaDTO> GetPorId(int id)
+        public async Task<ActionResult<UsuarioRespostaDTO>> GetPorId(int id)
         {
-            var usuario = Usuarios.FirstOrDefault(u => u.Id == id);
+            // 1. Buscar usuário no banco
+            var usuario = await _context.Usuarios
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == id);
 
             if (usuario == null)
                 return NotFound(new { mensagem = "Usuário não encontrado." });
 
-            // Converte o usuário completo para o DTO de resposta
+            // 2. Converter para DTO fora do SQL
             var resposta = ParaResposta(usuario);
 
             return Ok(resposta);
@@ -41,35 +55,38 @@ namespace TamoJuntoGames.API.Controllers
 
         // DELETE: api/usuarios/{id}
         [HttpDelete("{id:int}")]
-        public IActionResult Deletar(int id)
+        public async Task<IActionResult> Deletar(int id)
         {
-            // 1. Localizar o usuario na lista
-            var usuario = Usuarios.FirstOrDefault(u => u.Id == id);
+            // 1. Localizar o usuario no banco
+            var usuario = await _context.Usuarios.FindAsync(id);
 
             // 2. Caso não localize. 404 (não encontrado)
             if (usuario == null)
                 return NotFound(new { mensagem = "Usuário não encontrado." });
 
-            // 3. Se achou, remove da lista
-            Usuarios.Remove(usuario);
+            // 3. Se achou, remove do banco
+            _context.Usuarios.Remove(usuario);
 
-            // 4. Devolve 204 (sucesso, porém sem corpo na resposta)
+            // 4. Persistir de fato no SQLite
+            await _context.SaveChangesAsync();
+
+            // 5. Devolve 204 (sucesso, porém sem corpo na resposta)
             return NoContent();
         }
 
         // PUT: api/usuarios/{id}
         [HttpPut("{id:int}")]
-        public ActionResult<UsuarioRespostaDTO> Atualizar(int id, [FromBody] AtualizarUsuarioDTO dto)
+        public async Task<ActionResult<UsuarioRespostaDTO>> Atualizar(int id, [FromBody] AtualizarUsuarioDTO dto)
         {
-            // 1. Procurar o usuário na lista
-            var usuario = Usuarios.FirstOrDefault(u => u.Id == id);
+            // 1. Procurar o usuário no banco
+            var usuario = await _context.Usuarios.FirstOrDefaultAsync(u => u.Id == id);
 
             // 2. Se não achar, devolver 404
             if (usuario == null)
                 return NotFound(new { mensagem = "Usuário não encontrado." });
 
             // 3. Verificar se o novo e-mail já não está em uso por OUTRO usuário
-            var emailJaExiste = Usuarios.Any(u => u.Email == dto.Email && u.Id != id);
+            var emailJaExiste = await _context.Usuarios.AnyAsync(u => u.Email == dto.Email && u.Id != id);
             if (emailJaExiste)
                 return Conflict(new { mensagem = "Já existe outro usuário com esse e-mail." });
 
@@ -78,16 +95,19 @@ namespace TamoJuntoGames.API.Controllers
             usuario.Apelido = dto.Apelido;
             usuario.Email = dto.Email;
 
-            // 5. Montar DTO de resposta (sem senha ainda)
+            // 5. Persistir no SQLite
+            await _context.SaveChangesAsync();
+
+            // 6. Montar DTO de resposta (sem senha)
             var resposta = ParaResposta(usuario);
 
-            // 6. Devolver 200 OK com os dados atualizados
+            // 7. Devolver 200 OK com os dados atualizados
             return Ok(resposta);
         }
 
         // POST: api/usuarios
         [HttpPost]
-        public ActionResult<UsuarioRespostaDTO> Criar([FromBody] CriarUsuarioDTO dto)
+        public async Task<ActionResult<UsuarioRespostaDTO>> Criar([FromBody] CriarUsuarioDTO dto)
         {
             // 1. Validar email
             if (dto.Email != dto.ConfirmarEmail)
@@ -97,28 +117,31 @@ namespace TamoJuntoGames.API.Controllers
             if (dto.Senha != dto.ConfirmarSenha)
                 return BadRequest(new { mensagem = "As senhas não coincidem." });
 
-            // 3. Validar email repetido
-            var emailJaExiste = Usuarios.Any(u => u.Email == dto.Email);
+            // 3. Validar email repetido no BANCO (não é mais lista)
+            var emailJaExiste = await _context.Usuarios.AnyAsync(u => u.Email == dto.Email);
             if (emailJaExiste)
                 return Conflict(new { mensagem = "Já existe um usuário cadastrado com esse e-mail." });
 
             // 4. Converter DTO -> Model
             var novoUsuario = new Usuario
             {
-                Id = _proximoId++,
+                // Id não é setado: o SQLite/EF gera
                 NomeCompleto = dto.NomeCompleto,
                 Apelido = dto.Apelido,
                 Email = dto.Email,
                 Senha = dto.Senha
             };
 
-            // 5. "Salvar" na lista
-            Usuarios.Add(novoUsuario);
+            // 5. Salvar no banco
+            _context.Usuarios.Add(novoUsuario);
 
-            // 6. Montar DTO de resposta (sem senha)
+            // 6. Persistir de fato no SQLite (aqui o Id é gerado)
+            await _context.SaveChangesAsync();
+
+            // 7. Montar DTO de resposta (sem senha)
             var resposta = ParaResposta(novoUsuario);
 
-            // 7. Retornar CREATED (201) com o DTO
+            // 8. Retornar CREATED (201) com o DTO
             return CreatedAtAction(
                 nameof(GetPorId),
                 new { id = novoUsuario.Id },
@@ -128,17 +151,17 @@ namespace TamoJuntoGames.API.Controllers
 
         // POST: api/usuarios/login
         [HttpPost("login")]
-        public ActionResult<UsuarioRespostaDTO> Login([FromBody] LoginUsuarioDTO dto)
+        public async Task<ActionResult<UsuarioRespostaDTO>> Login([FromBody] LoginUsuarioDTO dto)
         {
             // 1. Validar se veio email e senha
             if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Senha))
                 return BadRequest(new { mensagem = "E-mail e senha são obrigatórios." });
 
-            // 2. Procurar usuário com esse email e senha
-            var usuario = Usuarios.FirstOrDefault(u =>
-                u.Email == dto.Email &&
-                u.Senha == dto.Senha
-            );
+            // 2. Procurar usuário com esse email e senha no BANCO
+            // (Fase 1: senha em texto, mais pra frente a gente troca por hash)
+            var usuario = await _context.Usuarios
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Email == dto.Email && u.Senha == dto.Senha);
 
             // 3. Se não encontrar, devolve 401 (não autorizado)
             if (usuario == null)
