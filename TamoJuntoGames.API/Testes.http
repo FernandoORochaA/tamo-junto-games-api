@@ -3,10 +3,10 @@ POST http://localhost:5197/api/usuarios
 Content-Type: application/json
 
 {
-  "nomeCompleto": "Fernando Rocha",
-  "apelido": "Napers",
-  "email": "napers@example.com",
-  "confirmarEmail": "napers@example.com",
+  "nomeCompleto": "Fernando V R C Jr",
+  "apelido": "MilosGaymes",
+  "email": "ferdinando@example.com",
+  "confirmarEmail": "ferdinando@example.com",
   "senha": "SenhaForte123",
   "confirmarSenha": "SenhaForte123"
 }
@@ -18,18 +18,18 @@ Accept: application/json
 
 
 ### Atualizar usuário (PUT)
-PUT http://localhost:5197/api/usuarios/1
+PUT http://localhost:5197/api/usuarios/5
 Content-Type: application/json
 
 {
-  "nomeCompleto": "Fernando Rocha Atualizado",
-  "apelido": "Napers2",
-  "email": "fernando.novo@example.com"
+  "nomeCompleto": "Fernando V R C Jr Atualizado",
+  "apelido": "MilosGaymes",
+  "email": "ferdinando@example.com"
 }
 
 
 ### Deletar usuário 1
-DELETE http://localhost:5197/api/usuarios/1
+DELETE http://localhost:5197/api/usuarios/5
 Accept: application/json
 
 
@@ -43,6 +43,15 @@ POST http://localhost:5197/api/usuarios/login
 Content-Type: application/json
 
 {
-  "email": "fernando@example.com",
+  "email": "ferdinando@example.com",
   "senha": "SenhaForte123"
+}
+
+### Testar LOGIN (senha errada)
+POST http://localhost:5197/api/usuarios/login
+Content-Type: application/json
+
+{
+  "email": "ferdinando@example.com",
+  "senha": "SenhaErrada999"
 }

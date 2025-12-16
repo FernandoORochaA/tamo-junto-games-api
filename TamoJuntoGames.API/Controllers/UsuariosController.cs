@@ -1,8 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using TamoJuntoGames.API.Data;
 using TamoJuntoGames.API.DTOs;
-using TamoJuntoGames.API.Models;
+using TamoJuntoGames.API.Services;
 
 namespace TamoJuntoGames.API.Controllers
 {
@@ -10,28 +8,22 @@ namespace TamoJuntoGames.API.Controllers
     [Route("api/[controller]")]
     public class UsuariosController : ControllerBase
     {
-        // DbContext injetado — agora o "banco" é o SQLite via EF Core (não é mais lista em memória)
-        private readonly AppDbContext _context;
+        // Service injetado — agora o "cérebro" fica no UsuarioService
+        private readonly IUsuarioService _usuarioService;
 
-        public UsuariosController(AppDbContext context)
+        public UsuariosController(IUsuarioService usuarioService)
         {
-            _context = context;
+            _usuarioService = usuarioService;
         }
 
         // GET: api/usuarios
         [HttpGet]
         public async Task<ActionResult<IEnumerable<UsuarioRespostaDTO>>> GetTodos()
         {
-            // 1. Buscar usuários no banco (SQLite)
-            var usuarios = await _context.Usuarios
-                .AsNoTracking()
-                .ToListAsync();
+            // 1. Pede pro Service listar os usuários
+            var resposta = await _usuarioService.ListarAsync();
 
-            // 2. Converter para DTO (sem senha) fora do SQL
-            var resposta = usuarios
-                .Select(ParaResposta)
-                .ToList();
-
+            // 2. Devolve 200 OK
             return Ok(resposta);
         }
 
@@ -39,17 +31,14 @@ namespace TamoJuntoGames.API.Controllers
         [HttpGet("{id:int}")]
         public async Task<ActionResult<UsuarioRespostaDTO>> GetPorId(int id)
         {
-            // 1. Buscar usuário no banco
-            var usuario = await _context.Usuarios
-                .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Id == id);
+            // 1. Pede pro Service buscar por Id
+            var resposta = await _usuarioService.ObterPorIdAsync(id);
 
-            if (usuario == null)
+            // 2. Se não existir, 404
+            if (resposta == null)
                 return NotFound(new { mensagem = "Usuário não encontrado." });
 
-            // 2. Converter para DTO fora do SQL
-            var resposta = ParaResposta(usuario);
-
+            // 3. Se existir, 200 OK
             return Ok(resposta);
         }
 
@@ -57,20 +46,14 @@ namespace TamoJuntoGames.API.Controllers
         [HttpDelete("{id:int}")]
         public async Task<IActionResult> Deletar(int id)
         {
-            // 1. Localizar o usuario no banco
-            var usuario = await _context.Usuarios.FindAsync(id);
+            // 1. Pede pro Service deletar
+            var deletou = await _usuarioService.DeletarAsync(id);
 
-            // 2. Caso não localize. 404 (não encontrado)
-            if (usuario == null)
+            // 2. Se não achou, 404
+            if (!deletou)
                 return NotFound(new { mensagem = "Usuário não encontrado." });
 
-            // 3. Se achou, remove do banco
-            _context.Usuarios.Remove(usuario);
-
-            // 4. Persistir de fato no SQLite
-            await _context.SaveChangesAsync();
-
-            // 5. Devolve 204 (sucesso, porém sem corpo na resposta)
+            // 3. Se deletou, 204
             return NoContent();
         }
 
@@ -78,112 +61,69 @@ namespace TamoJuntoGames.API.Controllers
         [HttpPut("{id:int}")]
         public async Task<ActionResult<UsuarioRespostaDTO>> Atualizar(int id, [FromBody] AtualizarUsuarioDTO dto)
         {
-            // 1. Procurar o usuário no banco
-            var usuario = await _context.Usuarios.FirstOrDefaultAsync(u => u.Id == id);
+            try
+            {
+                // 1. Pede pro Service atualizar
+                var resposta = await _usuarioService.AtualizarAsync(id, dto);
 
-            // 2. Se não achar, devolver 404
-            if (usuario == null)
-                return NotFound(new { mensagem = "Usuário não encontrado." });
+                // 2. Se não achou, 404
+                if (resposta == null)
+                    return NotFound(new { mensagem = "Usuário não encontrado." });
 
-            // 3. Verificar se o novo e-mail já não está em uso por OUTRO usuário
-            var emailJaExiste = await _context.Usuarios.AnyAsync(u => u.Email == dto.Email && u.Id != id);
-            if (emailJaExiste)
-                return Conflict(new { mensagem = "Já existe outro usuário com esse e-mail." });
-
-            // 4. Atualizar os dados do usuário encontrado
-            usuario.NomeCompleto = dto.NomeCompleto;
-            usuario.Apelido = dto.Apelido;
-            usuario.Email = dto.Email;
-
-            // 5. Persistir no SQLite
-            await _context.SaveChangesAsync();
-
-            // 6. Montar DTO de resposta (sem senha)
-            var resposta = ParaResposta(usuario);
-
-            // 7. Devolver 200 OK com os dados atualizados
-            return Ok(resposta);
+                // 3. Se atualizou, 200 OK
+                return Ok(resposta);
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Regra de negócio (ex: e-mail já existe) -> 409 Conflict
+                return Conflict(new { mensagem = ex.Message });
+            }
         }
 
         // POST: api/usuarios
         [HttpPost]
         public async Task<ActionResult<UsuarioRespostaDTO>> Criar([FromBody] CriarUsuarioDTO dto)
         {
-            // 1. Validar email
-            if (dto.Email != dto.ConfirmarEmail)
-                return BadRequest(new { mensagem = "Os e-mails não coincidem." });
-
-            // 2. Validar senha
-            if (dto.Senha != dto.ConfirmarSenha)
-                return BadRequest(new { mensagem = "As senhas não coincidem." });
-
-            // 3. Validar email repetido no BANCO (não é mais lista)
-            var emailJaExiste = await _context.Usuarios.AnyAsync(u => u.Email == dto.Email);
-            if (emailJaExiste)
-                return Conflict(new { mensagem = "Já existe um usuário cadastrado com esse e-mail." });
-
-            // 4. Converter DTO -> Model
-            var novoUsuario = new Usuario
+            try
             {
-                // Id não é setado: o SQLite/EF gera
-                NomeCompleto = dto.NomeCompleto,
-                Apelido = dto.Apelido,
-                Email = dto.Email,
-                Senha = dto.Senha
-            };
+                // 1. Pede pro Service criar o usuário
+                var resposta = await _usuarioService.CriarAsync(dto);
 
-            // 5. Salvar no banco
-            _context.Usuarios.Add(novoUsuario);
+                // 2. Retorna CREATED (201) com o DTO
+                return CreatedAtAction(
+                    nameof(GetPorId),
+                    new { id = resposta.Id },
+                    resposta
+                );
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Regras do Service (ex: e-mails não coincidem, senha não coincide, e-mail repetido)
+                // Aqui a gente diferencia:
+                // - conflito (email repetido) -> 409
+                // - validação/regra de preenchimento -> 400
+                var msg = ex.Message;
 
-            // 6. Persistir de fato no SQLite (aqui o Id é gerado)
-            await _context.SaveChangesAsync();
+                if (msg.Contains("Já existe um usuário cadastrado") || msg.Contains("Já existe outro usuário"))
+                    return Conflict(new { mensagem = msg });
 
-            // 7. Montar DTO de resposta (sem senha)
-            var resposta = ParaResposta(novoUsuario);
-
-            // 8. Retornar CREATED (201) com o DTO
-            return CreatedAtAction(
-                nameof(GetPorId),
-                new { id = novoUsuario.Id },
-                resposta
-            );
+                return BadRequest(new { mensagem = msg });
+            }
         }
 
         // POST: api/usuarios/login
         [HttpPost("login")]
         public async Task<ActionResult<UsuarioRespostaDTO>> Login([FromBody] LoginUsuarioDTO dto)
         {
-            // 1. Validar se veio email e senha
-            if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Senha))
-                return BadRequest(new { mensagem = "E-mail e senha são obrigatórios." });
+            // 1. Pede pro Service validar login
+            var resposta = await _usuarioService.LoginAsync(dto);
 
-            // 2. Procurar usuário com esse email e senha no BANCO
-            // (Fase 1: senha em texto, mais pra frente a gente troca por hash)
-            var usuario = await _context.Usuarios
-                .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Email == dto.Email && u.Senha == dto.Senha);
-
-            // 3. Se não encontrar, devolve 401 (não autorizado)
-            if (usuario == null)
+            // 2. Se não bater email/senha -> 401
+            if (resposta == null)
                 return Unauthorized(new { mensagem = "E-mail ou senha inválidos." });
 
-            // 4. Se encontrar, monta DTO de resposta (sem senha)
-            var resposta = ParaResposta(usuario);
-
-            // 5. Devolve 200 OK com os dados do usuário logado
+            // 3. Se bater -> 200 OK
             return Ok(resposta);
-        }
-
-        // Converte o Model Usuario para o DTO de resposta
-        private static UsuarioRespostaDTO ParaResposta(Usuario usuario)
-        {
-            return new UsuarioRespostaDTO
-            {
-                Id = usuario.Id,
-                NomeCompleto = usuario.NomeCompleto,
-                Apelido = usuario.Apelido,
-                Email = usuario.Email
-            };
         }
     }
 }
