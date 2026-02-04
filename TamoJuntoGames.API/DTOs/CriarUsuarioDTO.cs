@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using TamoJuntoGames.API.Validations;
 
 namespace TamoJuntoGames.API.DTOs
 {
@@ -17,6 +18,7 @@ namespace TamoJuntoGames.API.DTOs
 
         [Required(ErrorMessage = "Confirmação de e-mail é obrigatória.")]
         [EmailAddress(ErrorMessage = "E-mail inválido.")]
+        [CamposIguais("Email", ErrorMessage = "Os e-mails não coincidem.")]
         public string ConfirmarEmail { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Senha é obrigatória.")]
@@ -24,6 +26,7 @@ namespace TamoJuntoGames.API.DTOs
         public string Senha { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Confirmação de senha é obrigatória.")]
+        [CamposIguais("Senha", ErrorMessage = "As senhas não coincidem.")]
         public string ConfirmarSenha { get; set; } = string.Empty;
     }
 }

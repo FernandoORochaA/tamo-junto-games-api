@@ -22,6 +22,6 @@ namespace TamoJuntoGames.API.Services
         Task<bool> DeletarAsync(int id);
 
         // Login (retorna DTO se ok; null se credenciais inválidas)
-        Task<UsuarioRespostaDTO?> LoginAsync(LoginUsuarioDTO dto);
+        Task<LoginRespostaDTO?> LoginAsync(LoginUsuarioDTO dto);
     }
 }

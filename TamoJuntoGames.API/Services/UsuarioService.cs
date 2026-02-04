@@ -1,7 +1,13 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System;
+using Microsoft.Extensions.Configuration;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
 using TamoJuntoGames.API.Data;
 using TamoJuntoGames.API.DTOs;
 using TamoJuntoGames.API.Models;
+
 
 namespace TamoJuntoGames.API.Services
 {
@@ -10,10 +16,12 @@ namespace TamoJuntoGames.API.Services
     public class UsuarioService : IUsuarioService
     {
         private readonly AppDbContext _context;
+        private readonly IConfiguration _config;
 
-        public UsuarioService(AppDbContext context)
+        public UsuarioService(AppDbContext context, IConfiguration config)
         {
             _context = context;
+            _config = config;
         }
 
         // Lista todos os usuários (sem senha)
@@ -44,14 +52,6 @@ namespace TamoJuntoGames.API.Services
         // Cria usuário (com hash de senha)
         public async Task<UsuarioRespostaDTO> CriarAsync(CriarUsuarioDTO dto)
         {
-            // Regra de negócio: confirmar email
-            if (dto.Email != dto.ConfirmarEmail)
-                throw new InvalidOperationException("Os e-mails não coincidem.");
-
-            // Regra de negócio: confirmar senha
-            if (dto.Senha != dto.ConfirmarSenha)
-                throw new InvalidOperationException("As senhas não coincidem.");
-
             // Regra de negócio: email repetido
             var emailJaExiste = await _context.Usuarios
                 .AnyAsync(u => u.Email == dto.Email);
@@ -115,9 +115,9 @@ namespace TamoJuntoGames.API.Services
         }
 
         // Login (valida hash)
-        public async Task<UsuarioRespostaDTO?> LoginAsync(LoginUsuarioDTO dto)
+        public async Task<LoginRespostaDTO?> LoginAsync(LoginUsuarioDTO dto)
         {
-            // Busca por email
+            // 1 - Busca por email
             var usuario = await _context.Usuarios
                 .AsNoTracking()
                 .FirstOrDefaultAsync(u => u.Email == dto.Email);
@@ -125,12 +125,22 @@ namespace TamoJuntoGames.API.Services
             if (usuario == null)
                 return null;
 
-            // Confere senha digitada vs hash salvo
+            // 2 - Confere senha digitada vs hash salvo
             var senhaValida = BCrypt.Net.BCrypt.Verify(dto.Senha, usuario.Senha);
             if (!senhaValida)
                 return null;
 
-            return ParaResposta(usuario);
+            // 3) Gera token JWT
+            var token = GerarToken(usuario, out var expiraEm);
+
+
+            // 4) Devolve usuário + token
+            return new LoginRespostaDTO
+            {
+                Usuario = ParaResposta(usuario),
+                Token = token,
+                ExpiraEm = expiraEm
+            };
         }
 
         // Converte Model -> DTO de resposta (sem senha)
@@ -143,6 +153,44 @@ namespace TamoJuntoGames.API.Services
                 Apelido = usuario.Apelido,
                 Email = usuario.Email
             };
+        }
+        // Gera um JWT para o usuário logado
+        private string GerarToken(Usuario usuario, out DateTime expiraEm)
+        {
+            // Lê configurações do appsettings.json
+            var jwtKey = _config["Jwt:Key"];
+            var jwtIssuer = _config["Jwt:Issuer"];
+            var jwtAudience = _config["Jwt:Audience"];
+            var expireMinutes = int.Parse(_config["Jwt:ExpireMinutes"] ?? "60");
+
+            // Validação jwtKey
+            if (string.IsNullOrWhiteSpace(jwtKey))
+                throw new InvalidOperationException("Jwt:Key não configurado no appsettings.json");
+
+            expiraEm = DateTime.UtcNow.AddMinutes(expireMinutes);
+
+            // Claims = "informações" que vão dentro do token (quem é o usuário, etc.)
+            var claims = new List<Claim>
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, usuario.Id.ToString()),
+                new Claim(JwtRegisteredClaimNames.Email, usuario.Email),
+                new Claim("apelido", usuario.Apelido)
+            };
+
+            // Monta a assinatura do token com a chave secreta
+            var key = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(jwtKey!));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            // Cria o token
+            var jwtToken = new JwtSecurityToken(
+                issuer: jwtIssuer,
+                audience: jwtAudience,
+                claims: claims,
+                expires: expiraEm,
+                signingCredentials: creds
+            );
+
+            return new JwtSecurityTokenHandler().WriteToken(jwtToken);
         }
     }
 }

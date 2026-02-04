@@ -1,25 +1,53 @@
-﻿### Criar usuário
-POST http://localhost:5197/api/usuarios
+﻿### 1 - LOGIN OK - pega token
+# @name login
+POST https://localhost:7246/api/usuarios/login
 Content-Type: application/json
 
 {
-  "nomeCompleto": "Fernando V R C Jr",
-  "apelido": "MilosGaymes",
-  "email": "ferdinando@example.com",
-  "confirmarEmail": "ferdinando@example.com",
+  "email": "fernando@example.com",
+  "senha": "SenhaForte123"
+}
+
+### 2 - Salva o token em variável (espera que a resposta tenha: { "token": "..." })
+@token = {{login.response.body.token}}
+
+### 3 - 401 - rota protegida SEM token (teste obrigatório)
+GET https://localhost:7246/api/usuarios
+Accept: application/json
+
+
+### 4 - 200 - rota protegida COM token (teste obrigatório)
+GET https://localhost:7246/api/usuarios
+Accept: application/json
+Authorization: Bearer {{token}}
+
+
+### 5 - Criar usuário (PROTEGIDO) - com token
+# OBS: deixei confirmarEmail IGUAL ao email pra não dar erro de validação
+POST https://localhost:7246/api/usuarios
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiZW1haWwiOiJmZXJuYW5kb0BleGFtcGxlLmNvbSIsImFwZWxpZG8iOiJGZXJuYXMiLCJleHAiOjE3Njc4OTY3NDksImlzcyI6IlRhbW9KdW50b0dhbWVzLkFQSSIsImF1ZCI6IlRhbW9KdW50b0dhbWVzLkZyb250ZW5kIn0.6q-TkSBShvIwkJTUZ9NlhlgLFCWQ3odfPU8xmYOQvPA
+
+{
+  "nomeCompleto": "Ana Carolina",
+  "apelido": "Aninha",
+  "email": "ana@example.com",
+  "confirmarEmail": "ana@example.com",
   "senha": "SenhaForte123",
   "confirmarSenha": "SenhaForte123"
 }
 
 
-### Listar usuários
-GET http://localhost:5197/api/usuarios
+### 6 - Listar usuários (COM token)
+GET https://localhost:7246/api/usuarios
 Accept: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiZW1haWwiOiJmZXJuYW5kb0BleGFtcGxlLmNvbSIsImFwZWxpZG8iOiJGZXJuYXMiLCJleHAiOjE3Njc4OTY3NDksImlzcyI6IlRhbW9KdW50b0dhbWVzLkFQSSIsImF1ZCI6IlRhbW9KdW50b0dhbWVzLkZyb250ZW5kIn0.6q-TkSBShvIwkJTUZ9NlhlgLFCWQ3odfPU8xmYOQvPA
 
 
-### Atualizar usuário (PUT)
-PUT http://localhost:5197/api/usuarios/5
+### 7 - Atualizar usuário (PUT) (COM token)
+PUT https://localhost:7246/api/usuarios/5
 Content-Type: application/json
+Authorization: Bearer {{token}}
 
 {
   "nomeCompleto": "Fernando V R C Jr Atualizado",
@@ -28,27 +56,14 @@ Content-Type: application/json
 }
 
 
-### Deletar usuário 1
-DELETE http://localhost:5197/api/usuarios/5
+### 8 - Deletar usuário (COM token)
+DELETE https://localhost:7246/api/usuarios/5
 Accept: application/json
+Authorization: Bearer {{token}}
 
 
-### Listar usuários depois
-GET http://localhost:5197/api/usuarios
-Accept: application/json
-
-
-### Testar LOGIN
-POST http://localhost:5197/api/usuarios/login
-Content-Type: application/json
-
-{
-  "email": "ferdinando@example.com",
-  "senha": "SenhaForte123"
-}
-
-### Testar LOGIN (senha errada)
-POST http://localhost:5197/api/usuarios/login
+### 9 - Login senha errada (deve dar 401)
+POST https://localhost:7246/api/usuarios/login
 Content-Type: application/json
 
 {

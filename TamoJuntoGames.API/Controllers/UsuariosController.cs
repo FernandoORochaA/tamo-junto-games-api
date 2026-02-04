@@ -1,11 +1,13 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using TamoJuntoGames.API.DTOs;
 using TamoJuntoGames.API.Services;
+using Microsoft.AspNetCore.Authorization;
 
 namespace TamoJuntoGames.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize] // Tudo protegido por padrão
     public class UsuariosController : ControllerBase
     {
         // Service injetado — agora o "cérebro" fica no UsuarioService
@@ -80,6 +82,7 @@ namespace TamoJuntoGames.API.Controllers
             }
         }
 
+        
         // POST: api/usuarios
         [HttpPost]
         public async Task<ActionResult<UsuarioRespostaDTO>> Criar([FromBody] CriarUsuarioDTO dto)
@@ -111,18 +114,18 @@ namespace TamoJuntoGames.API.Controllers
             }
         }
 
-        // POST: api/usuarios/login
-        [HttpPost("login")]
-        public async Task<ActionResult<UsuarioRespostaDTO>> Login([FromBody] LoginUsuarioDTO dto)
+        [AllowAnonymous]
+        [HttpPost("login")] // POST: api/usuarios/login
+        public async Task<ActionResult<LoginRespostaDTO>> Login([FromBody] LoginUsuarioDTO dto)
         {
-            // 1. Pede pro Service validar login
+            // Envia dados para o Service (Service = valida credenciais, gera token, monta a resposta final)
             var resposta = await _usuarioService.LoginAsync(dto);
 
-            // 2. Se não bater email/senha -> 401
+            // Se resposta do service for Null o email ta errado ou inexistente
             if (resposta == null)
                 return Unauthorized(new { mensagem = "E-mail ou senha inválidos." });
 
-            // 3. Se bater -> 200 OK
+            // Se deu tudo certo, devolve 200 OK
             return Ok(resposta);
         }
     }
