@@ -4,7 +4,10 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
+using TamoJuntoGames.API.Data;
 using TamoJuntoGames.API.DTOs;
 using TamoJuntoGames.API.Tests.Infrastructure;
 using Xunit;
@@ -129,6 +132,14 @@ public class UsuariosAuthenticationTests
         var usuarioCriado = await response.Content.ReadFromJsonAsync<UsuarioRespostaDTO>();
         Assert.NotNull(usuarioCriado);
         Assert.Equal("nova@example.com", usuarioCriado.Email);
+
+        using var scope = factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var usuarioPersistido = await context.Usuarios
+            .SingleAsync(usuario => usuario.Email == "nova@example.com");
+
+        Assert.Null(usuarioPersistido.DataNascimento);
+        Assert.Null(usuarioPersistido.Genero);
     }
 
     [Fact]
