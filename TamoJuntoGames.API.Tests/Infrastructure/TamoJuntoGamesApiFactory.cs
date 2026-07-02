@@ -73,10 +73,16 @@ public sealed class TamoJuntoGamesApiFactory : WebApplicationFactory<Program>
 
     public HttpClient CreateHttpsClient()
     {
-        return CreateClient(new WebApplicationFactoryClientOptions
+        var client = CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost")
         });
+
+        using var scope = Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        context.Database.EnsureCreated();
+
+        return client;
     }
 
     public async Task<Usuario> AdicionarUsuarioAsync(

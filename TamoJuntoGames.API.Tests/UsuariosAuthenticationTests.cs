@@ -109,7 +109,7 @@ public class UsuariosAuthenticationTests
     }
 
     [Fact]
-    public async Task CadastroSemTokenRetornaUnauthorizedNoComportamentoAtual()
+    public async Task CadastroSemTokenRetornaCreated()
     {
         using var factory = new TamoJuntoGamesApiFactory();
         using var client = factory.CreateHttpsClient();
@@ -124,7 +124,11 @@ public class UsuariosAuthenticationTests
             ConfirmarSenha = SenhaValida
         });
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        var usuarioCriado = await response.Content.ReadFromJsonAsync<UsuarioRespostaDTO>();
+        Assert.NotNull(usuarioCriado);
+        Assert.Equal("nova@example.com", usuarioCriado.Email);
     }
 
     [Fact]

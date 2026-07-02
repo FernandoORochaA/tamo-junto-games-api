@@ -84,6 +84,7 @@ namespace TamoJuntoGames.API.Controllers
 
         
         // POST: api/usuarios
+        [AllowAnonymous]
         [HttpPost]
         public async Task<ActionResult<UsuarioRespostaDTO>> Criar([FromBody] CriarUsuarioDTO dto)
         {
