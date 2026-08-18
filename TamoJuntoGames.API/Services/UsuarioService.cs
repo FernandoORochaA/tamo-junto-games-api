@@ -52,9 +52,12 @@ namespace TamoJuntoGames.API.Services
         // Cria usuário (com hash de senha)
         public async Task<UsuarioRespostaDTO> CriarAsync(CriarUsuarioDTO dto)
         {
+            var email = EmailNormalizer.ParaApresentacao(dto.Email);
+            var emailNormalizado = EmailNormalizer.ParaIdentidade(dto.Email);
+
             // Regra de negócio: email repetido
             var emailJaExiste = await _context.Usuarios
-                .AnyAsync(u => u.Email == dto.Email);
+                .AnyAsync(u => u.EmailNormalizado == emailNormalizado);
 
             if (emailJaExiste)
                 throw new InvalidOperationException("Já existe um usuário cadastrado com esse e-mail.");
@@ -64,7 +67,8 @@ namespace TamoJuntoGames.API.Services
             {
                 NomeCompleto = dto.NomeCompleto,
                 Apelido = dto.Apelido,
-                Email = dto.Email,
+                Email = email,
+                EmailNormalizado = emailNormalizado,
                 Senha = BCrypt.Net.BCrypt.HashPassword(dto.Senha)
             };
 
@@ -83,9 +87,12 @@ namespace TamoJuntoGames.API.Services
             if (usuario == null)
                 return null;
 
+            var email = EmailNormalizer.ParaApresentacao(dto.Email);
+            var emailNormalizado = EmailNormalizer.ParaIdentidade(dto.Email);
+
             // Regra de negócio: email repetido em outro usuário
             var emailJaExiste = await _context.Usuarios
-                .AnyAsync(u => u.Email == dto.Email && u.Id != id);
+                .AnyAsync(u => u.EmailNormalizado == emailNormalizado && u.Id != id);
 
             if (emailJaExiste)
                 throw new InvalidOperationException("Já existe outro usuário com esse e-mail.");
@@ -93,7 +100,8 @@ namespace TamoJuntoGames.API.Services
             // Atualiza
             usuario.NomeCompleto = dto.NomeCompleto;
             usuario.Apelido = dto.Apelido;
-            usuario.Email = dto.Email;
+            usuario.Email = email;
+            usuario.EmailNormalizado = emailNormalizado;
 
             await _context.SaveChangesAsync();
 
@@ -117,10 +125,12 @@ namespace TamoJuntoGames.API.Services
         // Login (valida hash)
         public async Task<LoginRespostaDTO?> LoginAsync(LoginUsuarioDTO dto)
         {
+            var emailNormalizado = EmailNormalizer.ParaIdentidade(dto.Email);
+
             // 1 - Busca por email
             var usuario = await _context.Usuarios
                 .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Email == dto.Email);
+                .FirstOrDefaultAsync(u => u.EmailNormalizado == emailNormalizado);
 
             if (usuario == null)
                 return null;

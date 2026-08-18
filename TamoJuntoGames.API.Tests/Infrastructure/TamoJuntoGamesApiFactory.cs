@@ -7,9 +7,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using TamoJuntoGames.API.Data;
 using TamoJuntoGames.API.Models;
+using TamoJuntoGames.API.Services;
 
 namespace TamoJuntoGames.API.Tests.Infrastructure;
 
@@ -31,6 +33,11 @@ public sealed class TamoJuntoGamesApiFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
+
+        builder.ConfigureLogging(logging =>
+        {
+            logging.ClearProviders();
+        });
 
         builder.ConfigureAppConfiguration((_, configuration) =>
         {
@@ -99,7 +106,8 @@ public sealed class TamoJuntoGamesApiFactory : WebApplicationFactory<Program>
         {
             NomeCompleto = "Fernando Rocha",
             Apelido = apelido,
-            Email = email,
+            Email = EmailNormalizer.ParaApresentacao(email),
+            EmailNormalizado = EmailNormalizer.ParaIdentidade(email),
             DataNascimento = new DateTime(2000, 1, 1),
             Genero = "Não informado",
             Senha = BCrypt.Net.BCrypt.HashPassword(senha)

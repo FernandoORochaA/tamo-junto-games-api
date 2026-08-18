@@ -1,4 +1,9 @@
-﻿### 1 - LOGIN OK - pega token
+﻿### ============================================================
+### TAMO JUNTO GAMES - TESTES MANUAIS DA API
+### ============================================================
+
+
+### 1 - LOGIN OK - pega token
 # @name login
 POST https://localhost:7246/api/usuarios/login
 Content-Type: application/json
@@ -8,65 +13,112 @@ Content-Type: application/json
   "senha": "SenhaForte123"
 }
 
-### 2 - Salva o token em variável (espera que a resposta tenha: { "token": "..." })
+
+### 2 - Salva o token retornado pelo login
 @token = {{login.response.body.token}}
 
-### 3 - 401 - rota protegida SEM token (teste obrigatório)
+
+### 3 - Rota protegida SEM token - deve retornar 401
 GET https://localhost:7246/api/usuarios
 Accept: application/json
 
 
-### 4 - 200 - rota protegida COM token (teste obrigatório)
+### 4 - Rota protegida COM token - deve retornar 200
 GET https://localhost:7246/api/usuarios
 Accept: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{login.response.body.$.token}}
 
 
-### 5 - Criar usuário (PROTEGIDO) - com token
-# OBS: deixei confirmarEmail IGUAL ao email pra não dar erro de validação
+### 5 - Criar usuário SEM token - cadastro público
+# @name criarUsuario
 POST https://localhost:7246/api/usuarios
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiZW1haWwiOiJmZXJuYW5kb0BleGFtcGxlLmNvbSIsImFwZWxpZG8iOiJGZXJuYXMiLCJleHAiOjE3Njc4OTY3NDksImlzcyI6IlRhbW9KdW50b0dhbWVzLkFQSSIsImF1ZCI6IlRhbW9KdW50b0dhbWVzLkZyb250ZW5kIn0.6q-TkSBShvIwkJTUZ9NlhlgLFCWQ3odfPU8xmYOQvPA
 
 {
-  "nomeCompleto": "Ana Carolina",
-  "apelido": "Aninha",
-  "email": "ana@example.com",
-  "confirmarEmail": "ana@example.com",
+  "nomeCompleto": "Teste Etapa Quatro",
+  "apelido": "TesteEmail",
+  "email": "teste.etapa4@example.com",
+  "confirmarEmail": "teste.etapa4@example.com",
   "senha": "SenhaForte123",
   "confirmarSenha": "SenhaForte123"
 }
 
 
-### 6 - Listar usuários (COM token)
-GET https://localhost:7246/api/usuarios
-Accept: application/json
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiZW1haWwiOiJmZXJuYW5kb0BleGFtcGxlLmNvbSIsImFwZWxpZG8iOiJGZXJuYXMiLCJleHAiOjE3Njc4OTY3NDksImlzcyI6IlRhbW9KdW50b0dhbWVzLkFQSSIsImF1ZCI6IlRhbW9KdW50b0dhbWVzLkZyb250ZW5kIn0.6q-TkSBShvIwkJTUZ9NlhlgLFCWQ3odfPU8xmYOQvPA
+### ============================================================
+### ETAPA 4 - NORMALIZAÇÃO E UNICIDADE DO E-MAIL
+### ============================================================
 
 
-### 7 - Atualizar usuário (PUT) (COM token)
-PUT https://localhost:7246/api/usuarios/5
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "nomeCompleto": "Fernando V R C Jr Atualizado",
-  "apelido": "MilosGaymes",
-  "email": "ferdinando@example.com"
-}
-
-
-### 8 - Deletar usuário (COM token)
-DELETE https://localhost:7246/api/usuarios/5
-Accept: application/json
-Authorization: Bearer {{token}}
-
-
-### 9 - Login senha errada (deve dar 401)
+### 6 - LOGIN com maiúsculas/minúsculas diferentes e espaços
+# Deve funcionar normalmente e retornar token
+# @name loginNormalizado
 POST https://localhost:7246/api/usuarios/login
 Content-Type: application/json
 
 {
-  "email": "ferdinando@example.com",
+  "email": "   FeRnAnDo@ExAmPlE.CoM   ",
+  "senha": "SenhaForte123"
+}
+
+
+### 7 - Tentar cadastrar e-mail duplicado mudando caixa
+# Já existe: teste.etapa4@example.com
+# Deve rejeitar por duplicidade
+POST https://localhost:7246/api/usuarios
+Content-Type: application/json
+
+{
+  "nomeCompleto": "Usuário Duplicado",
+  "apelido": "Duplicado",
+  "email": "TESTE.ETAPA4@EXAMPLE.COM",
+  "confirmarEmail": "TESTE.ETAPA4@EXAMPLE.COM",
+  "senha": "SenhaForte123",
+  "confirmarSenha": "SenhaForte123"
+}
+
+
+### 8 - Tentar cadastrar o mesmo e-mail com espaços externos
+# Deve continuar sendo reconhecido como duplicado
+POST https://localhost:7246/api/usuarios
+Content-Type: application/json
+
+{
+  "nomeCompleto": "Usuário Duplicado Espaços",
+  "apelido": "DuplicadoEspacos",
+  "email": "   teste.etapa4@example.com   ",
+  "confirmarEmail": "   teste.etapa4@example.com   ",
+  "senha": "SenhaForte123",
+  "confirmarSenha": "SenhaForte123"
+}
+
+
+### 9 - LOGIN do usuário criado usando caixa diferente e espaços
+# Deve funcionar normalmente
+POST https://localhost:7246/api/usuarios/login
+Content-Type: application/json
+
+{
+  "email": "   TeStE.EtApA4@ExAmPlE.CoM   ",
+  "senha": "SenhaForte123"
+}
+
+
+### ============================================================
+### TESTES GERAIS
+### ============================================================
+
+
+### 10 - Listar usuários COM token
+GET https://localhost:7246/api/usuarios
+Accept: application/json
+Authorization: Bearer {{login.response.body.$.token}}
+
+
+### 11 - Login com senha errada - deve retornar 401
+POST https://localhost:7246/api/usuarios/login
+Content-Type: application/json
+
+{
+  "email": "fernando@example.com",
   "senha": "SenhaErrada999"
 }

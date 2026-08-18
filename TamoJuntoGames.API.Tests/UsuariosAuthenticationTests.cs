@@ -9,6 +9,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using TamoJuntoGames.API.Data;
 using TamoJuntoGames.API.DTOs;
+using TamoJuntoGames.API.Models;
+using TamoJuntoGames.API.Services;
 using TamoJuntoGames.API.Tests.Infrastructure;
 using Xunit;
 
@@ -138,8 +140,96 @@ public class UsuariosAuthenticationTests
         var usuarioPersistido = await context.Usuarios
             .SingleAsync(usuario => usuario.Email == "nova@example.com");
 
+        Assert.Equal("NOVA@EXAMPLE.COM", usuarioPersistido.EmailNormalizado);
         Assert.Null(usuarioPersistido.DataNascimento);
         Assert.Null(usuarioPersistido.Genero);
+    }
+
+    [Fact]
+    public async Task CadastroComEmailDuplicadoMudandoCaixaRetornaConflict()
+    {
+        using var factory = new TamoJuntoGamesApiFactory();
+        await factory.AdicionarUsuarioAsync(email: "ana@example.com");
+        using var client = factory.CreateHttpsClient();
+
+        var response = await client.PostAsJsonAsync("/api/usuarios", new CriarUsuarioDTO
+        {
+            NomeCompleto = "Ana Duplicada",
+            Apelido = "Ana2",
+            Email = "ANA@EXAMPLE.com",
+            ConfirmarEmail = "ANA@EXAMPLE.com",
+            Senha = SenhaValida,
+            ConfirmarSenha = SenhaValida
+        });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CadastroRemoveEspacosExternosEGravaEmailNormalizado()
+    {
+        using var factory = new TamoJuntoGamesApiFactory();
+        using var client = factory.CreateHttpsClient();
+
+        var response = await client.PostAsJsonAsync("/api/usuarios", new CriarUsuarioDTO
+        {
+            NomeCompleto = "Email Com Espaço",
+            Apelido = "Espaco",
+            Email = "  Espaco@Example.com  ",
+            ConfirmarEmail = "  Espaco@Example.com  ",
+            Senha = SenhaValida,
+            ConfirmarSenha = SenhaValida
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        var usuarioCriado = await response.Content.ReadFromJsonAsync<UsuarioRespostaDTO>();
+        Assert.NotNull(usuarioCriado);
+        Assert.Equal("Espaco@Example.com", usuarioCriado.Email);
+
+        using var scope = factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var usuarioPersistido = await context.Usuarios
+            .SingleAsync(usuario => usuario.EmailNormalizado == "ESPACO@EXAMPLE.COM");
+
+        Assert.Equal("Espaco@Example.com", usuarioPersistido.Email);
+        Assert.Equal("ESPACO@EXAMPLE.COM", usuarioPersistido.EmailNormalizado);
+    }
+
+    [Fact]
+    public async Task LoginFuncionaComEmailEmCaixaDiferente()
+    {
+        using var factory = new TamoJuntoGamesApiFactory();
+        await factory.AdicionarUsuarioAsync(
+            email: "Jogador@Example.com",
+            senha: SenhaValida);
+        using var client = factory.CreateHttpsClient();
+
+        var response = await client.PostAsJsonAsync("/api/usuarios/login", new LoginUsuarioDTO
+        {
+            Email = "jogador@example.COM",
+            Senha = SenhaValida
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task LoginFuncionaComEspacosExternosNoEmail()
+    {
+        using var factory = new TamoJuntoGamesApiFactory();
+        await factory.AdicionarUsuarioAsync(
+            email: "jogador@example.com",
+            senha: SenhaValida);
+        using var client = factory.CreateHttpsClient();
+
+        var response = await client.PostAsJsonAsync("/api/usuarios/login", new LoginUsuarioDTO
+        {
+            Email = "  jogador@example.com  ",
+            Senha = SenhaValida
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
@@ -170,6 +260,114 @@ public class UsuariosAuthenticationTests
             });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AtualizacaoNaoPermiteEmailDeOutroUsuarioMesmoComDiferencaDeCaixa()
+    {
+        using var factory = new TamoJuntoGamesApiFactory();
+        var usuarioAutenticado = await factory.AdicionarUsuarioAsync(
+            email: "autenticado@example.com",
+            senha: SenhaValida,
+            apelido: "Autenticado");
+        var outroUsuario = await factory.AdicionarUsuarioAsync(
+            email: "outro@example.com",
+            senha: SenhaValida,
+            apelido: "Outro");
+        await factory.AdicionarUsuarioAsync(
+            email: "usado@example.com",
+            senha: SenhaValida,
+            apelido: "Usado");
+        using var client = factory.CreateHttpsClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                await FazerLoginAsync(client, usuarioAutenticado.Email));
+
+        var response = await client.PutAsJsonAsync(
+            $"/api/usuarios/{outroUsuario.Id}",
+            new AtualizarUsuarioDTO
+            {
+                NomeCompleto = "Outro Usuário",
+                Apelido = "Outro",
+                Email = "USADO@EXAMPLE.com"
+            });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AtualizacaoRemoveEspacosExternosERecalculaEmailNormalizado()
+    {
+        using var factory = new TamoJuntoGamesApiFactory();
+        var usuarioAutenticado = await factory.AdicionarUsuarioAsync(
+            email: "autenticado@example.com",
+            senha: SenhaValida,
+            apelido: "Autenticado");
+        var outroUsuario = await factory.AdicionarUsuarioAsync(
+            email: "outro@example.com",
+            senha: SenhaValida,
+            apelido: "Outro");
+        using var client = factory.CreateHttpsClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                await FazerLoginAsync(client, usuarioAutenticado.Email));
+
+        var response = await client.PutAsJsonAsync(
+            $"/api/usuarios/{outroUsuario.Id}",
+            new AtualizarUsuarioDTO
+            {
+                NomeCompleto = "Outro Usuário Atualizado",
+                Apelido = "Atualizado",
+                Email = "  Outro.Novo@Example.com  "
+            });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var usuarioAtualizado = await response.Content.ReadFromJsonAsync<UsuarioRespostaDTO>();
+        Assert.NotNull(usuarioAtualizado);
+        Assert.Equal("Outro.Novo@Example.com", usuarioAtualizado.Email);
+
+        using var scope = factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var usuarioPersistido = await context.Usuarios
+            .SingleAsync(usuario => usuario.Id == outroUsuario.Id);
+
+        Assert.Equal("Outro.Novo@Example.com", usuarioPersistido.Email);
+        Assert.Equal("OUTRO.NOVO@EXAMPLE.COM", usuarioPersistido.EmailNormalizado);
+    }
+
+    [Fact]
+    public async Task BancoGaranteUnicidadeRealDeEmailNormalizado()
+    {
+        using var factory = new TamoJuntoGamesApiFactory();
+
+        using var scope = factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await context.Database.EnsureCreatedAsync();
+
+        context.Usuarios.Add(new Usuario
+        {
+            NomeCompleto = "Primeiro Usuário",
+            Apelido = "Primeiro",
+            Email = "primeiro@example.com",
+            EmailNormalizado = EmailNormalizer.ParaIdentidade("primeiro@example.com"),
+            Senha = BCrypt.Net.BCrypt.HashPassword(SenhaValida)
+        });
+
+        await context.SaveChangesAsync();
+
+        context.Usuarios.Add(new Usuario
+        {
+            NomeCompleto = "Segundo Usuário",
+            Apelido = "Segundo",
+            Email = "PRIMEIRO@example.com",
+            EmailNormalizado = EmailNormalizer.ParaIdentidade("PRIMEIRO@example.com"),
+            Senha = BCrypt.Net.BCrypt.HashPassword(SenhaValida)
+        });
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
     }
 
     [Fact]
