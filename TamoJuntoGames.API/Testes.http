@@ -3,8 +3,13 @@
 ### ============================================================
 
 
-### 1 - LOGIN OK - pega token
-# @name login
+### ============================================================
+### AUTENTICAÇÃO BÁSICA
+### ============================================================
+
+
+### 1 - LOGIN OK - pega token do Fernando
+# @name loginFernando
 POST https://localhost:7246/api/usuarios/login
 Content-Type: application/json
 
@@ -14,33 +19,39 @@ Content-Type: application/json
 }
 
 
-### 2 - Salva o token retornado pelo login
-@token = {{login.response.body.token}}
+### 2 - LOGIN com senha errada - deve retornar 401
+POST https://localhost:7246/api/usuarios/login
+Content-Type: application/json
+
+{
+  "email": "fernando@example.com",
+  "senha": "SenhaErrada999"
+}
 
 
-### 3 - Rota protegida SEM token - deve retornar 401
-GET https://localhost:7246/api/usuarios
-Accept: application/json
-
-
-### 4 - Rota protegida COM token - deve retornar 200
-GET https://localhost:7246/api/usuarios
-Accept: application/json
-Authorization: Bearer {{login.response.body.$.token}}
-
-
-### 5 - Criar usuário SEM token - cadastro público
-# @name criarUsuario
+### 3 - Cadastro continua público - SEM token
+# @name criarUsuarioEtapa5
 POST https://localhost:7246/api/usuarios
 Content-Type: application/json
 
 {
-  "nomeCompleto": "Teste Etapa Quatro",
-  "apelido": "TesteEmail",
-  "email": "teste.etapa4@example.com",
-  "confirmarEmail": "teste.etapa4@example.com",
+  "nomeCompleto": "Usuario Teste Etapa Cinco",
+  "apelido": "TesteEtapa5",
+  "email": "teste.etapa5@example.com",
+  "confirmarEmail": "teste.etapa5@example.com",
   "senha": "SenhaForte123",
   "confirmarSenha": "SenhaForte123"
+}
+
+
+### 4 - LOGIN do usuário criado para Etapa 5
+# @name loginEtapa5
+POST https://localhost:7246/api/usuarios/login
+Content-Type: application/json
+
+{
+  "email": "teste.etapa5@example.com",
+  "senha": "SenhaForte123"
 }
 
 
@@ -49,9 +60,8 @@ Content-Type: application/json
 ### ============================================================
 
 
-### 6 - LOGIN com maiúsculas/minúsculas diferentes e espaços
-# Deve funcionar normalmente e retornar token
-# @name loginNormalizado
+### 5 - LOGIN do Fernando com caixa diferente e espaços
+# Deve retornar 200 e token
 POST https://localhost:7246/api/usuarios/login
 Content-Type: application/json
 
@@ -61,64 +71,138 @@ Content-Type: application/json
 }
 
 
-### 7 - Tentar cadastrar e-mail duplicado mudando caixa
-# Já existe: teste.etapa4@example.com
-# Deve rejeitar por duplicidade
+### 6 - Tentar cadastrar e-mail duplicado mudando caixa
+# Deve retornar conflito / duplicidade
 POST https://localhost:7246/api/usuarios
 Content-Type: application/json
 
 {
-  "nomeCompleto": "Usuário Duplicado",
+  "nomeCompleto": "Usuario Duplicado",
   "apelido": "Duplicado",
-  "email": "TESTE.ETAPA4@EXAMPLE.COM",
-  "confirmarEmail": "TESTE.ETAPA4@EXAMPLE.COM",
+  "email": "TESTE.ETAPA5@EXAMPLE.COM",
+  "confirmarEmail": "TESTE.ETAPA5@EXAMPLE.COM",
   "senha": "SenhaForte123",
   "confirmarSenha": "SenhaForte123"
 }
 
 
-### 8 - Tentar cadastrar o mesmo e-mail com espaços externos
+### 7 - Tentar cadastrar o mesmo e-mail com espaços externos
 # Deve continuar sendo reconhecido como duplicado
 POST https://localhost:7246/api/usuarios
 Content-Type: application/json
 
 {
-  "nomeCompleto": "Usuário Duplicado Espaços",
+  "nomeCompleto": "Usuario Duplicado Espacos",
   "apelido": "DuplicadoEspacos",
-  "email": "   teste.etapa4@example.com   ",
-  "confirmarEmail": "   teste.etapa4@example.com   ",
+  "email": "   teste.etapa5@example.com   ",
+  "confirmarEmail": "   teste.etapa5@example.com   ",
   "senha": "SenhaForte123",
   "confirmarSenha": "SenhaForte123"
 }
 
 
-### 9 - LOGIN do usuário criado usando caixa diferente e espaços
-# Deve funcionar normalmente
+### 8 - LOGIN do usuário da Etapa 5 usando caixa diferente e espaços
+# Deve retornar 200
 POST https://localhost:7246/api/usuarios/login
 Content-Type: application/json
 
 {
-  "email": "   TeStE.EtApA4@ExAmPlE.CoM   ",
+  "email": "   TeStE.EtApA5@ExAmPlE.CoM   ",
   "senha": "SenhaForte123"
 }
 
 
 ### ============================================================
-### TESTES GERAIS
+### ETAPA 5 - AUTORIZAÇÃO POR USUÁRIO
 ### ============================================================
 
 
-### 10 - Listar usuários COM token
+### 9 - Antiga listagem geral SEM token
+# GET /api/usuarios foi removido
+# Deve retornar 405 Method Not Allowed
 GET https://localhost:7246/api/usuarios
 Accept: application/json
-Authorization: Bearer {{login.response.body.$.token}}
 
 
-### 11 - Login com senha errada - deve retornar 401
-POST https://localhost:7246/api/usuarios/login
+### 10 - Antiga listagem geral COM token
+# Mesmo autenticado, a listagem geral não existe mais
+# Deve retornar 405 Method Not Allowed
+GET https://localhost:7246/api/usuarios
+Accept: application/json
+Authorization: Bearer {{loginFernando.response.body.$.token}}
+
+
+### ------------------------------------------------------------
+### CONSULTA POR ID
+### ------------------------------------------------------------
+
+
+### 11 - Fernando consulta o próprio usuário
+# TROQUE ID_FERNANDO pelo ID real do Fernando
+# Deve retornar 200 OK
+GET https://localhost:7246/api/usuarios/1
+Accept: application/json
+Authorization: Bearer {{loginFernando.response.body.$.token}}
+
+
+### 12 - Fernando tenta consultar OUTRO usuário
+# TROQUE ID_OUTRO_USUARIO pelo ID do usuário teste da Etapa 5
+# Deve retornar 403 Forbidden
+GET https://localhost:7246/api/usuarios/5
+Accept: application/json
+Authorization: Bearer {{loginFernando.response.body.$.token}}
+
+
+### ------------------------------------------------------------
+### ATUALIZAÇÃO
+### ------------------------------------------------------------
+
+
+### 13 - Fernando atualiza o próprio usuário
+# TROQUE ID_FERNANDO pelo ID real do Fernando
+# Deve retornar 200 OK
+PUT https://localhost:7246/api/usuarios/1
 Content-Type: application/json
+Authorization: Bearer {{loginFernando.response.body.$.token}}
 
 {
-  "email": "fernando@example.com",
-  "senha": "SenhaErrada999"
+  "nomeCompleto": "Fernando Atualizado Etapa Cinco",
+  "apelido": "Fernas",
+  "email": "fernando@example.com"
 }
+
+
+### 14 - Fernando tenta atualizar OUTRO usuário
+# TROQUE ID_OUTRO_USUARIO pelo ID do usuário teste da Etapa 5
+# Deve retornar 403 Forbidden
+PUT https://localhost:7246/api/usuarios/5
+Content-Type: application/json
+Authorization: Bearer {{loginFernando.response.body.$.token}}
+
+{
+  "nomeCompleto": "Tentativa de Alteracao Indevida",
+  "apelido": "NaoPode",
+  "email": "alteracao.indevida@example.com"
+}
+
+
+### ------------------------------------------------------------
+### EXCLUSÃO
+### ------------------------------------------------------------
+
+
+### 15 - Fernando tenta excluir OUTRO usuário
+# TROQUE ID_OUTRO_USUARIO pelo ID do usuário teste da Etapa 5
+# Deve retornar 403 Forbidden
+DELETE https://localhost:7246/api/usuarios/5
+Accept: application/json
+Authorization: Bearer {{loginFernando.response.body.$.token}}
+
+
+### 16 - Usuário da Etapa 5 exclui A SI MESMO
+# TROQUE ID_OUTRO_USUARIO pelo ID do usuário teste da Etapa 5
+# IMPORTANTE: executar este teste somente por último
+# Deve retornar 204 No Content
+DELETE https://localhost:7246/api/usuarios/5
+Accept: application/json
+Authorization: Bearer {{loginEtapa5.response.body.$.token}}

@@ -24,18 +24,6 @@ namespace TamoJuntoGames.API.Services
             _config = config;
         }
 
-        // Lista todos os usuários (sem senha)
-        public async Task<IEnumerable<UsuarioRespostaDTO>> ListarAsync()
-        {
-            // 1) Busca no banco
-            var usuarios = await _context.Usuarios
-                .AsNoTracking()
-                .ToListAsync();
-
-            // 2) Converte para DTO fora do SQL
-            return usuarios.Select(ParaResposta);
-        }
-
         // Busca usuário por Id (sem senha)
         public async Task<UsuarioRespostaDTO?> ObterPorIdAsync(int id)
         {

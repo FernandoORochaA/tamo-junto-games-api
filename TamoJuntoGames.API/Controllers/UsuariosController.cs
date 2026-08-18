@@ -2,6 +2,8 @@
 using TamoJuntoGames.API.DTOs;
 using TamoJuntoGames.API.Services;
 using Microsoft.AspNetCore.Authorization;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace TamoJuntoGames.API.Controllers
 {
@@ -18,21 +20,15 @@ namespace TamoJuntoGames.API.Controllers
             _usuarioService = usuarioService;
         }
 
-        // GET: api/usuarios
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<UsuarioRespostaDTO>>> GetTodos()
-        {
-            // 1. Pede pro Service listar os usuários
-            var resposta = await _usuarioService.ListarAsync();
-
-            // 2. Devolve 200 OK
-            return Ok(resposta);
-        }
-
         // GET: api/usuarios/{id}
         [HttpGet("{id:int}")]
         public async Task<ActionResult<UsuarioRespostaDTO>> GetPorId(int id)
         {
+            var usuarioAutenticadoId = ObterUsuarioAutenticadoId();
+
+            if (usuarioAutenticadoId is null || usuarioAutenticadoId.Value != id)
+                return Forbid();
+
             // 1. Pede pro Service buscar por Id
             var resposta = await _usuarioService.ObterPorIdAsync(id);
 
@@ -48,6 +44,11 @@ namespace TamoJuntoGames.API.Controllers
         [HttpDelete("{id:int}")]
         public async Task<IActionResult> Deletar(int id)
         {
+            var usuarioAutenticadoId = ObterUsuarioAutenticadoId();
+
+            if (usuarioAutenticadoId is null || usuarioAutenticadoId.Value != id)
+                return Forbid();
+
             // 1. Pede pro Service deletar
             var deletou = await _usuarioService.DeletarAsync(id);
 
@@ -63,6 +64,11 @@ namespace TamoJuntoGames.API.Controllers
         [HttpPut("{id:int}")]
         public async Task<ActionResult<UsuarioRespostaDTO>> Atualizar(int id, [FromBody] AtualizarUsuarioDTO dto)
         {
+            var usuarioAutenticadoId = ObterUsuarioAutenticadoId();
+
+            if (usuarioAutenticadoId is null || usuarioAutenticadoId.Value != id)
+                return Forbid();
+
             try
             {
                 // 1. Pede pro Service atualizar
@@ -128,6 +134,17 @@ namespace TamoJuntoGames.API.Controllers
 
             // Se deu tudo certo, devolve 200 OK
             return Ok(resposta);
+        }
+
+        private int? ObterUsuarioAutenticadoId()
+        {
+            var sub = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
+                ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (!int.TryParse(sub, out var usuarioId))
+                return null;
+
+            return usuarioId;
         }
     }
 }

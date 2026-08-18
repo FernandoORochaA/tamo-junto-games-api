@@ -6,9 +6,6 @@ namespace TamoJuntoGames.API.Services
     // aqui é definido o que o SERVICE faz (sem dizer COMO faz).
     public interface IUsuarioService
     {
-        // Lista todos os usuários (retorna DTO de resposta, sem senha)
-        Task<IEnumerable<UsuarioRespostaDTO>> ListarAsync();
-
         // Busca um usuário por Id (se não existir, retorna null)
         Task<UsuarioRespostaDTO?> ObterPorIdAsync(int id);
 

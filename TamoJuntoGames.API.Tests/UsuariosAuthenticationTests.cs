@@ -75,18 +75,19 @@ public class UsuariosAuthenticationTests
     }
 
     [Fact]
-    public async Task ListagemSemTokenRetornaUnauthorized()
+    public async Task ConsultaPorIdSemTokenRetornaUnauthorized()
     {
         using var factory = new TamoJuntoGamesApiFactory();
+        var usuario = await factory.AdicionarUsuarioAsync();
         using var client = factory.CreateHttpsClient();
 
-        var response = await client.GetAsync("/api/usuarios");
+        var response = await client.GetAsync($"/api/usuarios/{usuario.Id}");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]
-    public async Task ListagemComTokenValidoRetornaOk()
+    public async Task ListagemGeralDeUsuariosNaoEstaDisponivel()
     {
         using var factory = new TamoJuntoGamesApiFactory();
         var usuario = await factory.AdicionarUsuarioAsync(senha: SenhaValida);
@@ -96,7 +97,7 @@ public class UsuariosAuthenticationTests
 
         var response = await client.GetAsync("/api/usuarios");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, response.StatusCode);
     }
 
     [Fact]
@@ -108,9 +109,89 @@ public class UsuariosAuthenticationTests
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", CriarTokenExpirado(usuario.Id, usuario.Email));
 
-        var response = await client.GetAsync("/api/usuarios");
+        var response = await client.GetAsync($"/api/usuarios/{usuario.Id}");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UsuarioAutenticadoPodeConsultarProprioUsuarioPorId()
+    {
+        using var factory = new TamoJuntoGamesApiFactory();
+        var usuario = await factory.AdicionarUsuarioAsync(senha: SenhaValida);
+        using var client = factory.CreateHttpsClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", await FazerLoginAsync(client, usuario.Email));
+
+        var response = await client.GetAsync($"/api/usuarios/{usuario.Id}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var usuarioRetornado = await response.Content.ReadFromJsonAsync<UsuarioRespostaDTO>();
+        Assert.NotNull(usuarioRetornado);
+        Assert.Equal(usuario.Id, usuarioRetornado.Id);
+        Assert.Equal(usuario.Email, usuarioRetornado.Email);
+    }
+
+    [Fact]
+    public async Task UsuarioAutenticadoRecebeForbiddenAoConsultarOutroUsuario()
+    {
+        using var factory = new TamoJuntoGamesApiFactory();
+        var usuarioAutenticado = await factory.AdicionarUsuarioAsync(
+            email: "autenticado@example.com",
+            senha: SenhaValida,
+            apelido: "Autenticado");
+        var outroUsuario = await factory.AdicionarUsuarioAsync(
+            email: "outro@example.com",
+            senha: SenhaValida,
+            apelido: "Outro");
+        using var client = factory.CreateHttpsClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                await FazerLoginAsync(client, usuarioAutenticado.Email));
+
+        var response = await client.GetAsync($"/api/usuarios/{outroUsuario.Id}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+        using var scope = factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var usuarioPersistido = await context.Usuarios
+            .SingleAsync(usuario => usuario.Id == outroUsuario.Id);
+
+        Assert.Equal("Fernando Rocha", usuarioPersistido.NomeCompleto);
+        Assert.Equal("Outro", usuarioPersistido.Apelido);
+        Assert.Equal("outro@example.com", usuarioPersistido.Email);
+        Assert.Equal("OUTRO@EXAMPLE.COM", usuarioPersistido.EmailNormalizado);
+    }
+
+    [Fact]
+    public async Task TokenComSubAusenteRetornaForbiddenEmRotaProtegidaPorUsuario()
+    {
+        using var factory = new TamoJuntoGamesApiFactory();
+        var usuario = await factory.AdicionarUsuarioAsync();
+        using var client = factory.CreateHttpsClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", CriarTokenSemSub(usuario.Email));
+
+        var response = await client.GetAsync($"/api/usuarios/{usuario.Id}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task TokenComSubInvalidoRetornaForbiddenEmRotaProtegidaPorUsuario()
+    {
+        using var factory = new TamoJuntoGamesApiFactory();
+        var usuario = await factory.AdicionarUsuarioAsync();
+        using var client = factory.CreateHttpsClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", CriarTokenComSub("valor-invalido", usuario.Email));
+
+        var response = await client.GetAsync($"/api/usuarios/{usuario.Id}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
@@ -233,37 +314,33 @@ public class UsuariosAuthenticationTests
     }
 
     [Fact]
-    public async Task UsuarioAutenticadoPodeAtualizarOutroUsuarioNoComportamentoAtual()
+    public async Task UsuarioAutenticadoPodeAtualizarProprioUsuario()
     {
         using var factory = new TamoJuntoGamesApiFactory();
-        var usuarioAutenticado = await factory.AdicionarUsuarioAsync(
+        var usuario = await factory.AdicionarUsuarioAsync(
             email: "autenticado@example.com",
             senha: SenhaValida,
             apelido: "Autenticado");
-        var outroUsuario = await factory.AdicionarUsuarioAsync(
-            email: "outro@example.com",
-            senha: SenhaValida,
-            apelido: "Outro");
         using var client = factory.CreateHttpsClient();
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue(
                 "Bearer",
-                await FazerLoginAsync(client, usuarioAutenticado.Email));
+                await FazerLoginAsync(client, usuario.Email));
 
         var response = await client.PutAsJsonAsync(
-            $"/api/usuarios/{outroUsuario.Id}",
+            $"/api/usuarios/{usuario.Id}",
             new AtualizarUsuarioDTO
             {
-                NomeCompleto = "Outro Usuário Atualizado",
+                NomeCompleto = "Usuário Atualizado",
                 Apelido = "Atualizado",
-                Email = "outro-atualizado@example.com"
+                Email = "autenticado-atualizado@example.com"
             });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
-    public async Task AtualizacaoNaoPermiteEmailDeOutroUsuarioMesmoComDiferencaDeCaixa()
+    public async Task UsuarioAutenticadoRecebeForbiddenAoAtualizarOutroUsuario()
     {
         using var factory = new TamoJuntoGamesApiFactory();
         var usuarioAutenticado = await factory.AdicionarUsuarioAsync(
@@ -274,10 +351,6 @@ public class UsuariosAuthenticationTests
             email: "outro@example.com",
             senha: SenhaValida,
             apelido: "Outro");
-        await factory.AdicionarUsuarioAsync(
-            email: "usado@example.com",
-            senha: SenhaValida,
-            apelido: "Usado");
         using var client = factory.CreateHttpsClient();
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue(
@@ -290,6 +363,36 @@ public class UsuariosAuthenticationTests
             {
                 NomeCompleto = "Outro Usuário",
                 Apelido = "Outro",
+                Email = "outro-atualizado@example.com"
+            });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AtualizacaoNaoPermiteEmailDeOutroUsuarioMesmoComDiferencaDeCaixa()
+    {
+        using var factory = new TamoJuntoGamesApiFactory();
+        var usuarioAutenticado = await factory.AdicionarUsuarioAsync(
+            email: "autenticado@example.com",
+            senha: SenhaValida,
+            apelido: "Autenticado");
+        await factory.AdicionarUsuarioAsync(
+            email: "usado@example.com",
+            senha: SenhaValida,
+            apelido: "Usado");
+        using var client = factory.CreateHttpsClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                await FazerLoginAsync(client, usuarioAutenticado.Email));
+
+        var response = await client.PutAsJsonAsync(
+            $"/api/usuarios/{usuarioAutenticado.Id}",
+            new AtualizarUsuarioDTO
+            {
+                NomeCompleto = "Usuário Autenticado",
+                Apelido = "Autenticado",
                 Email = "USADO@EXAMPLE.com"
             });
 
@@ -300,25 +403,21 @@ public class UsuariosAuthenticationTests
     public async Task AtualizacaoRemoveEspacosExternosERecalculaEmailNormalizado()
     {
         using var factory = new TamoJuntoGamesApiFactory();
-        var usuarioAutenticado = await factory.AdicionarUsuarioAsync(
+        var usuario = await factory.AdicionarUsuarioAsync(
             email: "autenticado@example.com",
             senha: SenhaValida,
             apelido: "Autenticado");
-        var outroUsuario = await factory.AdicionarUsuarioAsync(
-            email: "outro@example.com",
-            senha: SenhaValida,
-            apelido: "Outro");
         using var client = factory.CreateHttpsClient();
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue(
                 "Bearer",
-                await FazerLoginAsync(client, usuarioAutenticado.Email));
+                await FazerLoginAsync(client, usuario.Email));
 
         var response = await client.PutAsJsonAsync(
-            $"/api/usuarios/{outroUsuario.Id}",
+            $"/api/usuarios/{usuario.Id}",
             new AtualizarUsuarioDTO
             {
-                NomeCompleto = "Outro Usuário Atualizado",
+                NomeCompleto = "Usuário Atualizado",
                 Apelido = "Atualizado",
                 Email = "  Outro.Novo@Example.com  "
             });
@@ -332,7 +431,7 @@ public class UsuariosAuthenticationTests
         using var scope = factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var usuarioPersistido = await context.Usuarios
-            .SingleAsync(usuario => usuario.Id == outroUsuario.Id);
+            .SingleAsync(usuarioPersistido => usuarioPersistido.Id == usuario.Id);
 
         Assert.Equal("Outro.Novo@Example.com", usuarioPersistido.Email);
         Assert.Equal("OUTRO.NOVO@EXAMPLE.COM", usuarioPersistido.EmailNormalizado);
@@ -371,7 +470,30 @@ public class UsuariosAuthenticationTests
     }
 
     [Fact]
-    public async Task UsuarioAutenticadoPodeExcluirOutroUsuarioNoComportamentoAtual()
+    public async Task UsuarioAutenticadoPodeExcluirProprioUsuario()
+    {
+        using var factory = new TamoJuntoGamesApiFactory();
+        var usuario = await factory.AdicionarUsuarioAsync(
+            email: "autenticado@example.com",
+            senha: SenhaValida,
+            apelido: "Autenticado");
+        using var client = factory.CreateHttpsClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                await FazerLoginAsync(client, usuario.Email));
+
+        var response = await client.DeleteAsync($"/api/usuarios/{usuario.Id}");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        using var scope = factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Null(await context.Usuarios.FindAsync(usuario.Id));
+    }
+
+    [Fact]
+    public async Task UsuarioAutenticadoRecebeForbiddenAoExcluirOutroUsuario()
     {
         using var factory = new TamoJuntoGamesApiFactory();
         var usuarioAutenticado = await factory.AdicionarUsuarioAsync(
@@ -390,7 +512,11 @@ public class UsuariosAuthenticationTests
 
         var response = await client.DeleteAsync($"/api/usuarios/{outroUsuario.Id}");
 
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+        using var scope = factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.NotNull(await context.Usuarios.FindAsync(outroUsuario.Id));
     }
 
     private static async Task<string> FazerLoginAsync(HttpClient client, string email)
@@ -409,18 +535,43 @@ public class UsuariosAuthenticationTests
 
     private static string CriarTokenExpirado(int usuarioId, string email)
     {
+        return CriarToken(
+            [
+                new Claim(JwtRegisteredClaimNames.Sub, usuarioId.ToString()),
+                new Claim(JwtRegisteredClaimNames.Email, email)
+            ],
+            DateTime.UtcNow.AddMinutes(-1));
+    }
+
+    private static string CriarTokenSemSub(string email)
+    {
+        return CriarToken(
+            [
+                new Claim(JwtRegisteredClaimNames.Email, email)
+            ],
+            DateTime.UtcNow.AddMinutes(60));
+    }
+
+    private static string CriarTokenComSub(string sub, string email)
+    {
+        return CriarToken(
+            [
+                new Claim(JwtRegisteredClaimNames.Sub, sub),
+                new Claim(JwtRegisteredClaimNames.Email, email)
+            ],
+            DateTime.UtcNow.AddMinutes(60));
+    }
+
+    private static string CriarToken(IEnumerable<Claim> claims, DateTime expires)
+    {
         var key = new SymmetricSecurityKey(
             Encoding.UTF8.GetBytes(TamoJuntoGamesApiFactory.JwtKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
         var token = new JwtSecurityToken(
             issuer: TamoJuntoGamesApiFactory.JwtIssuer,
             audience: TamoJuntoGamesApiFactory.JwtAudience,
-            claims:
-            [
-                new Claim(JwtRegisteredClaimNames.Sub, usuarioId.ToString()),
-                new Claim(JwtRegisteredClaimNames.Email, email)
-            ],
-            expires: DateTime.UtcNow.AddMinutes(-1),
+            claims: claims,
+            expires: expires,
             signingCredentials: credentials);
 
         return new JwtSecurityTokenHandler().WriteToken(token);
