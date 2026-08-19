@@ -4,11 +4,24 @@
 
 
 ### ============================================================
+### ETAPA 6 - SEGREDOS E TOKENS FORA DOS ARQUIVOS VERSIONADOS
+### ============================================================
+
+### Objetivo desta validação manual:
+### - confirmar que a API inicia normalmente usando Jwt:Key via User Secrets;
+### - confirmar que o login continua gerando JWT válido;
+### - confirmar que o token obtido dinamicamente continua autenticando requisições;
+### - confirmar que autorização da Etapa 5 continua funcionando;
+### - nenhum JWT real deve ser colado manualmente neste arquivo.
+
+
+### ============================================================
 ### AUTENTICAÇÃO BÁSICA
 ### ============================================================
 
 
 ### 1 - LOGIN OK - pega token do Fernando
+### ETAPA 6: principal teste de geração de JWT com a nova chave
 # @name loginFernando
 POST https://localhost:7246/api/usuarios/login
 Content-Type: application/json
@@ -30,27 +43,27 @@ Content-Type: application/json
 
 
 ### 3 - Cadastro continua público - SEM token
-# @name criarUsuarioEtapa5
+# @name criarUsuarioEtapa6
 POST https://localhost:7246/api/usuarios
 Content-Type: application/json
 
 {
-  "nomeCompleto": "Usuario Teste Etapa Cinco",
-  "apelido": "TesteEtapa5",
-  "email": "teste.etapa5@example.com",
-  "confirmarEmail": "teste.etapa5@example.com",
+  "nomeCompleto": "Usuario Teste Etapa Seis",
+  "apelido": "TesteEtapa6",
+  "email": "teste.etapa6@example.com",
+  "confirmarEmail": "teste.etapa6@example.com",
   "senha": "SenhaForte123",
   "confirmarSenha": "SenhaForte123"
 }
 
 
-### 4 - LOGIN do usuário criado para Etapa 5
-# @name loginEtapa5
+### 4 - LOGIN do usuário criado para Etapa 6
+# @name loginEtapa6
 POST https://localhost:7246/api/usuarios/login
 Content-Type: application/json
 
 {
-  "email": "teste.etapa5@example.com",
+  "email": "teste.etapa6@example.com",
   "senha": "SenhaForte123"
 }
 
@@ -79,8 +92,8 @@ Content-Type: application/json
 {
   "nomeCompleto": "Usuario Duplicado",
   "apelido": "Duplicado",
-  "email": "TESTE.ETAPA5@EXAMPLE.COM",
-  "confirmarEmail": "TESTE.ETAPA5@EXAMPLE.COM",
+  "email": "TESTE.ETAPA6@EXAMPLE.COM",
+  "confirmarEmail": "TESTE.ETAPA6@EXAMPLE.COM",
   "senha": "SenhaForte123",
   "confirmarSenha": "SenhaForte123"
 }
@@ -94,20 +107,20 @@ Content-Type: application/json
 {
   "nomeCompleto": "Usuario Duplicado Espacos",
   "apelido": "DuplicadoEspacos",
-  "email": "   teste.etapa5@example.com   ",
-  "confirmarEmail": "   teste.etapa5@example.com   ",
+  "email": "   teste.etapa6@example.com   ",
+  "confirmarEmail": "   teste.etapa6@example.com   ",
   "senha": "SenhaForte123",
   "confirmarSenha": "SenhaForte123"
 }
 
 
-### 8 - LOGIN do usuário da Etapa 5 usando caixa diferente e espaços
+### 8 - LOGIN do usuário da Etapa 6 usando caixa diferente e espaços
 # Deve retornar 200
 POST https://localhost:7246/api/usuarios/login
 Content-Type: application/json
 
 {
-  "email": "   TeStE.EtApA5@ExAmPlE.CoM   ",
+  "email": "   TeStE.EtApA6@ExAmPlE.CoM   ",
   "senha": "SenhaForte123"
 }
 
@@ -126,6 +139,7 @@ Accept: application/json
 
 ### 10 - Antiga listagem geral COM token
 # Mesmo autenticado, a listagem geral não existe mais
+# IMPORTANTE: usa dinamicamente o token retornado pelo LOGIN 1
 # Deve retornar 405 Method Not Allowed
 GET https://localhost:7246/api/usuarios
 Accept: application/json
@@ -138,7 +152,6 @@ Authorization: Bearer {{loginFernando.response.body.$.token}}
 
 
 ### 11 - Fernando consulta o próprio usuário
-# TROQUE ID_FERNANDO pelo ID real do Fernando
 # Deve retornar 200 OK
 GET https://localhost:7246/api/usuarios/1
 Accept: application/json
@@ -146,9 +159,9 @@ Authorization: Bearer {{loginFernando.response.body.$.token}}
 
 
 ### 12 - Fernando tenta consultar OUTRO usuário
-# TROQUE ID_OUTRO_USUARIO pelo ID do usuário teste da Etapa 5
+# TROQUE o ID abaixo pelo ID real do usuário criado na Etapa 6, se necessário
 # Deve retornar 403 Forbidden
-GET https://localhost:7246/api/usuarios/5
+GET https://localhost:7246/api/usuarios/2
 Accept: application/json
 Authorization: Bearer {{loginFernando.response.body.$.token}}
 
@@ -159,23 +172,22 @@ Authorization: Bearer {{loginFernando.response.body.$.token}}
 
 
 ### 13 - Fernando atualiza o próprio usuário
-# TROQUE ID_FERNANDO pelo ID real do Fernando
 # Deve retornar 200 OK
 PUT https://localhost:7246/api/usuarios/1
 Content-Type: application/json
 Authorization: Bearer {{loginFernando.response.body.$.token}}
 
 {
-  "nomeCompleto": "Fernando Atualizado Etapa Cinco",
+  "nomeCompleto": "Fernando Atualizado Etapa Seis",
   "apelido": "Fernas",
   "email": "fernando@example.com"
 }
 
 
 ### 14 - Fernando tenta atualizar OUTRO usuário
-# TROQUE ID_OUTRO_USUARIO pelo ID do usuário teste da Etapa 5
+# TROQUE o ID abaixo pelo ID real do usuário criado na Etapa 6, se necessário
 # Deve retornar 403 Forbidden
-PUT https://localhost:7246/api/usuarios/5
+PUT https://localhost:7246/api/usuarios/2
 Content-Type: application/json
 Authorization: Bearer {{loginFernando.response.body.$.token}}
 
@@ -192,17 +204,17 @@ Authorization: Bearer {{loginFernando.response.body.$.token}}
 
 
 ### 15 - Fernando tenta excluir OUTRO usuário
-# TROQUE ID_OUTRO_USUARIO pelo ID do usuário teste da Etapa 5
+# TROQUE o ID abaixo pelo ID real do usuário criado na Etapa 6, se necessário
 # Deve retornar 403 Forbidden
-DELETE https://localhost:7246/api/usuarios/5
+DELETE https://localhost:7246/api/usuarios/2
 Accept: application/json
 Authorization: Bearer {{loginFernando.response.body.$.token}}
 
 
-### 16 - Usuário da Etapa 5 exclui A SI MESMO
-# TROQUE ID_OUTRO_USUARIO pelo ID do usuário teste da Etapa 5
+### 16 - Usuário da Etapa 6 exclui A SI MESMO
+# TROQUE o ID abaixo pelo ID real do usuário criado na Etapa 6, se necessário
 # IMPORTANTE: executar este teste somente por último
 # Deve retornar 204 No Content
-DELETE https://localhost:7246/api/usuarios/5
+DELETE https://localhost:7246/api/usuarios/6
 Accept: application/json
-Authorization: Bearer {{loginEtapa5.response.body.$.token}}
+Authorization: Bearer {{loginEtapa6.response.body.$.token}}

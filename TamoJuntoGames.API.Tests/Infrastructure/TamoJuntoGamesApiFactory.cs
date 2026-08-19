@@ -24,9 +24,23 @@ public sealed class TamoJuntoGamesApiFactory : WebApplicationFactory<Program>
     public const string JwtAudience = "TamoJuntoGames.API.Tests.Client";
 
     private readonly SqliteConnection _connection = new("Data Source=:memory:");
+    private readonly string? _originalJwtKey;
+    private readonly string? _originalJwtIssuer;
+    private readonly string? _originalJwtAudience;
+    private readonly string? _originalJwtExpireMinutes;
 
     public TamoJuntoGamesApiFactory()
     {
+        _originalJwtKey = Environment.GetEnvironmentVariable("Jwt__Key");
+        _originalJwtIssuer = Environment.GetEnvironmentVariable("Jwt__Issuer");
+        _originalJwtAudience = Environment.GetEnvironmentVariable("Jwt__Audience");
+        _originalJwtExpireMinutes = Environment.GetEnvironmentVariable("Jwt__ExpireMinutes");
+
+        Environment.SetEnvironmentVariable("Jwt__Key", JwtKey);
+        Environment.SetEnvironmentVariable("Jwt__Issuer", JwtIssuer);
+        Environment.SetEnvironmentVariable("Jwt__Audience", JwtAudience);
+        Environment.SetEnvironmentVariable("Jwt__ExpireMinutes", "60");
+
         _connection.Open();
     }
 
@@ -124,6 +138,13 @@ public sealed class TamoJuntoGamesApiFactory : WebApplicationFactory<Program>
         base.Dispose(disposing);
 
         if (disposing)
+        {
+            Environment.SetEnvironmentVariable("Jwt__Key", _originalJwtKey);
+            Environment.SetEnvironmentVariable("Jwt__Issuer", _originalJwtIssuer);
+            Environment.SetEnvironmentVariable("Jwt__Audience", _originalJwtAudience);
+            Environment.SetEnvironmentVariable("Jwt__ExpireMinutes", _originalJwtExpireMinutes);
+
             _connection.Dispose();
+        }
     }
 }

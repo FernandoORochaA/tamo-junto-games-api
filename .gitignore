@@ -9,6 +9,11 @@ obj/
 *.tmp
 *.log
 
+# Local secrets
+.env
+.env.*
+*.private.http
+
 # VS config
 *.user
 *.suo
