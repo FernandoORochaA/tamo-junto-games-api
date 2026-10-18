@@ -1,5 +1,5 @@
 ﻿using System;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using TamoJuntoGames.API.Data;
 using TamoJuntoGames.API.DTOs;
 using TamoJuntoGames.API.Models;
+using TamoJuntoGames.API.Options;
 
 
 namespace TamoJuntoGames.API.Services
@@ -16,12 +17,12 @@ namespace TamoJuntoGames.API.Services
     public class UsuarioService : IUsuarioService
     {
         private readonly AppDbContext _context;
-        private readonly IConfiguration _config;
+        private readonly JwtOptions _jwtOptions;
 
-        public UsuarioService(AppDbContext context, IConfiguration config)
+        public UsuarioService(AppDbContext context, IOptions<JwtOptions> jwtOptions)
         {
             _context = context;
-            _config = config;
+            _jwtOptions = jwtOptions.Value;
         }
 
         // Busca usuário por Id (sem senha)
@@ -155,17 +156,7 @@ namespace TamoJuntoGames.API.Services
         // Gera um JWT para o usuário logado
         private string GerarToken(Usuario usuario, out DateTime expiraEm)
         {
-            // Lê configurações do appsettings.json
-            var jwtKey = _config["Jwt:Key"];
-            var jwtIssuer = _config["Jwt:Issuer"];
-            var jwtAudience = _config["Jwt:Audience"];
-            var expireMinutes = int.Parse(_config["Jwt:ExpireMinutes"] ?? "60");
-
-            // Validação jwtKey
-            if (string.IsNullOrWhiteSpace(jwtKey))
-                throw new InvalidOperationException("Jwt:Key não configurado no appsettings.json");
-
-            expiraEm = DateTime.UtcNow.AddMinutes(expireMinutes);
+            expiraEm = DateTime.UtcNow.AddMinutes(_jwtOptions.ExpireMinutes);
 
             // Claims = "informações" que vão dentro do token (quem é o usuário, etc.)
             var claims = new List<Claim>
@@ -176,13 +167,13 @@ namespace TamoJuntoGames.API.Services
             };
 
             // Monta a assinatura do token com a chave secreta
-            var key = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(jwtKey!));
+            var key = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(_jwtOptions.Key));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             // Cria o token
             var jwtToken = new JwtSecurityToken(
-                issuer: jwtIssuer,
-                audience: jwtAudience,
+                issuer: _jwtOptions.Issuer,
+                audience: _jwtOptions.Audience,
                 claims: claims,
                 expires: expiraEm,
                 signingCredentials: creds

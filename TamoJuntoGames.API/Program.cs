@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using TamoJuntoGames.API.Data;
+using TamoJuntoGames.API.Options;
 using TamoJuntoGames.API.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,13 +20,29 @@ builder.Services.AddScoped<IUsuarioService, UsuarioService>();
 builder.Services.AddControllers();
 
 // JWT (Authentication)
-var jwtKey = builder.Configuration["Jwt:Key"];
-var jwtIssuer = builder.Configuration["Jwt:Issuer"];
-var jwtAudience = builder.Configuration["Jwt:Audience"];
+builder.Services.AddOptions<JwtOptions>()
+    .Bind(builder.Configuration.GetSection(JwtOptions.SectionName))
+    .Validate(options => !string.IsNullOrWhiteSpace(options.Key),
+        "Jwt:Key é obrigatória e não pode conter apenas espaços em branco.")
+    .Validate(options => options.Key is not null &&
+        System.Text.Encoding.UTF8.GetByteCount(options.Key) >= 32,
+        "Jwt:Key deve possuir pelo menos 32 bytes UTF-8.")
+    .Validate(options => !string.IsNullOrWhiteSpace(options.Issuer),
+        "Jwt:Issuer é obrigatório e não pode conter apenas espaços em branco.")
+    .Validate(options => !string.IsNullOrWhiteSpace(options.Audience),
+        "Jwt:Audience é obrigatório e não pode conter apenas espaços em branco.")
+    .Validate(options => options.ExpireMinutes is >= 1 and <= 1440,
+        "Jwt:ExpireMinutes deve ser um número inteiro entre 1 e 1440.")
+    .ValidateOnStart();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+    .AddJwtBearer();
+
+builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+    .Configure<IOptions<JwtOptions>>((options, jwtOptions) =>
     {
+        var jwt = jwtOptions.Value;
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -32,10 +50,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
 
-            ValidIssuer = jwtIssuer,
-            ValidAudience = jwtAudience,
+            ValidIssuer = jwt.Issuer,
+            ValidAudience = jwt.Audience,
             IssuerSigningKey = new SymmetricSecurityKey(
-                System.Text.Encoding.UTF8.GetBytes(jwtKey!)
+                System.Text.Encoding.UTF8.GetBytes(jwt.Key)
             ),
 
             ClockSkew = TimeSpan.Zero

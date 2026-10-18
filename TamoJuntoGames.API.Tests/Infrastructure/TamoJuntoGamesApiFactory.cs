@@ -1,5 +1,3 @@
-using System.Text;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
@@ -8,7 +6,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
-using Microsoft.IdentityModel.Tokens;
 using TamoJuntoGames.API.Data;
 using TamoJuntoGames.API.Models;
 using TamoJuntoGames.API.Services;
@@ -24,22 +21,21 @@ public sealed class TamoJuntoGamesApiFactory : WebApplicationFactory<Program>
     public const string JwtAudience = "TamoJuntoGames.API.Tests.Client";
 
     private readonly SqliteConnection _connection = new("Data Source=:memory:");
-    private readonly string? _originalJwtKey;
-    private readonly string? _originalJwtIssuer;
-    private readonly string? _originalJwtAudience;
-    private readonly string? _originalJwtExpireMinutes;
-
-    public TamoJuntoGamesApiFactory()
+    private readonly Dictionary<string, string?> _jwtConfiguration = new()
     {
-        _originalJwtKey = Environment.GetEnvironmentVariable("Jwt__Key");
-        _originalJwtIssuer = Environment.GetEnvironmentVariable("Jwt__Issuer");
-        _originalJwtAudience = Environment.GetEnvironmentVariable("Jwt__Audience");
-        _originalJwtExpireMinutes = Environment.GetEnvironmentVariable("Jwt__ExpireMinutes");
+        ["Jwt:Key"] = JwtKey,
+        ["Jwt:Issuer"] = JwtIssuer,
+        ["Jwt:Audience"] = JwtAudience,
+        ["Jwt:ExpireMinutes"] = "60"
+    };
 
-        Environment.SetEnvironmentVariable("Jwt__Key", JwtKey);
-        Environment.SetEnvironmentVariable("Jwt__Issuer", JwtIssuer);
-        Environment.SetEnvironmentVariable("Jwt__Audience", JwtAudience);
-        Environment.SetEnvironmentVariable("Jwt__ExpireMinutes", "60");
+    public TamoJuntoGamesApiFactory(IDictionary<string, string?>? jwtOverrides = null)
+    {
+        if (jwtOverrides is not null)
+        {
+            foreach (var entry in jwtOverrides)
+                _jwtConfiguration[entry.Key] = entry.Value;
+        }
 
         _connection.Open();
     }
@@ -55,13 +51,8 @@ public sealed class TamoJuntoGamesApiFactory : WebApplicationFactory<Program>
 
         builder.ConfigureAppConfiguration((_, configuration) =>
         {
-            configuration.AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Jwt:Key"] = JwtKey,
-                ["Jwt:Issuer"] = JwtIssuer,
-                ["Jwt:Audience"] = JwtAudience,
-                ["Jwt:ExpireMinutes"] = "60"
-            });
+            // Valores nulos também sobrescrevem fontes anteriores nos testes de ausência.
+            configuration.AddInMemoryCollection(_jwtConfiguration);
         });
 
         builder.ConfigureServices(services =>
@@ -71,24 +62,6 @@ public sealed class TamoJuntoGamesApiFactory : WebApplicationFactory<Program>
 
             services.AddDbContext<AppDbContext>(options =>
                 options.UseSqlite(_connection));
-
-            services.PostConfigure<JwtBearerOptions>(
-                JwtBearerDefaults.AuthenticationScheme,
-                options =>
-                {
-                    options.TokenValidationParameters = new TokenValidationParameters
-                    {
-                        ValidateIssuer = true,
-                        ValidateAudience = true,
-                        ValidateLifetime = true,
-                        ValidateIssuerSigningKey = true,
-                        ValidIssuer = JwtIssuer,
-                        ValidAudience = JwtAudience,
-                        IssuerSigningKey = new SymmetricSecurityKey(
-                            Encoding.UTF8.GetBytes(JwtKey)),
-                        ClockSkew = TimeSpan.Zero
-                    };
-                });
         });
     }
 
@@ -139,11 +112,6 @@ public sealed class TamoJuntoGamesApiFactory : WebApplicationFactory<Program>
 
         if (disposing)
         {
-            Environment.SetEnvironmentVariable("Jwt__Key", _originalJwtKey);
-            Environment.SetEnvironmentVariable("Jwt__Issuer", _originalJwtIssuer);
-            Environment.SetEnvironmentVariable("Jwt__Audience", _originalJwtAudience);
-            Environment.SetEnvironmentVariable("Jwt__ExpireMinutes", _originalJwtExpireMinutes);
-
             _connection.Dispose();
         }
     }
