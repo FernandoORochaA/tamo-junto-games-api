@@ -19,3 +19,9 @@ obj/
 *.suo
 *.cache
 *.sln.docstates
+
+# Banco SQLite local de desenvolvimento
+/TamoJuntoGames.API/tamojuntogames.db
+/TamoJuntoGames.API/tamojuntogames.db-shm
+/TamoJuntoGames.API/tamojuntogames.db-wal
+/TamoJuntoGames.API/tamojuntogames.db-journal
