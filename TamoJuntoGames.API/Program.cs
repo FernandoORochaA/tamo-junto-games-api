@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using TamoJuntoGames.API.Data;
 using TamoJuntoGames.API.Options;
+using TamoJuntoGames.API.RateLimiting;
 using TamoJuntoGames.API.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -20,6 +21,7 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 // Controllers
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
+builder.Services.AddRateLimiter(LoginRateLimiting.Configure);
 
 // JWT (Authentication)
 builder.Services.AddOptions<JwtOptions>()
@@ -98,6 +100,9 @@ app.UseExceptionHandler(errorApp => errorApp.Run(async context =>
 app.UseStatusCodePages();
 
 app.UseHttpsRedirection();
+
+app.UseRouting();
+app.UseRateLimiter();
 
 app.UseAuthentication();
 

@@ -1,6 +1,8 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using TamoJuntoGames.API.DTOs;
 using TamoJuntoGames.API.Exceptions;
+using Microsoft.AspNetCore.RateLimiting;
+using TamoJuntoGames.API.RateLimiting;
 using TamoJuntoGames.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using System.IdentityModel.Tokens.Jwt;
@@ -116,6 +118,7 @@ namespace TamoJuntoGames.API.Controllers
 
         [AllowAnonymous]
         [HttpPost("login")] // POST: api/usuarios/login
+        [EnableRateLimiting(LoginRateLimiting.PolicyName)]
         public async Task<ActionResult<LoginRespostaDTO>> Login([FromBody] LoginUsuarioDTO dto)
         {
             // Envia dados para o Service (Service = valida credenciais, gera token, monta a resposta final)
