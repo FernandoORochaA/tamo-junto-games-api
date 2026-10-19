@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
@@ -118,19 +119,37 @@ public class UsuariosAuthenticationTests
     public async Task UsuarioAutenticadoPodeConsultarProprioUsuarioPorId()
     {
         using var factory = new TamoJuntoGamesApiFactory();
-        var usuario = await factory.AdicionarUsuarioAsync(senha: SenhaValida);
         using var client = factory.CreateHttpsClient();
+        var cadastro = new CriarUsuarioDTO
+        {
+            NomeCompleto = "Pessoa Fictícia",
+            Apelido = "JogadorTeste",
+            Email = "jogador@example.com",
+            ConfirmarEmail = "jogador@example.com",
+            Senha = SenhaValida,
+            ConfirmarSenha = SenhaValida
+        };
+        using var cadastroResponse = await client.PostAsJsonAsync("/api/usuarios", cadastro);
+        Assert.Equal(HttpStatusCode.Created, cadastroResponse.StatusCode);
+        var usuario = await cadastroResponse.Content.ReadFromJsonAsync<UsuarioRespostaDTO>();
+        Assert.NotNull(usuario);
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", await FazerLoginAsync(client, usuario.Email));
 
-        var response = await client.GetAsync($"/api/usuarios/{usuario.Id}");
+        using var response = await client.GetAsync($"/api/usuarios/{usuario.Id}");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var usuarioRetornado = await response.Content.ReadFromJsonAsync<UsuarioRespostaDTO>();
-        Assert.NotNull(usuarioRetornado);
-        Assert.Equal(usuario.Id, usuarioRetornado.Id);
-        Assert.Equal(usuario.Email, usuarioRetornado.Email);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var usuarioRetornado = json.RootElement;
+        Assert.Equal(JsonValueKind.Object, usuarioRetornado.ValueKind);
+        Assert.Equal(
+            new[] { "apelido", "email", "id", "nomeCompleto" },
+            usuarioRetornado.EnumerateObject().Select(propriedade => propriedade.Name).OrderBy(nome => nome, StringComparer.Ordinal));
+        Assert.Equal(usuario.Id, usuarioRetornado.GetProperty("id").GetInt32());
+        Assert.Equal(cadastro.NomeCompleto, usuarioRetornado.GetProperty("nomeCompleto").GetString());
+        Assert.Equal(cadastro.Apelido, usuarioRetornado.GetProperty("apelido").GetString());
+        Assert.Equal(cadastro.Email, usuarioRetornado.GetProperty("email").GetString());
     }
 
     [Fact]

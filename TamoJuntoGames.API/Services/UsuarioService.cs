@@ -28,14 +28,17 @@ namespace TamoJuntoGames.API.Services
         // Busca usuário por Id (sem senha)
         public async Task<UsuarioRespostaDTO?> ObterPorIdAsync(int id)
         {
-            var usuario = await _context.Usuarios
+            return await _context.Usuarios
                 .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Id == id);
-
-            if (usuario == null)
-                return null;
-
-            return ParaResposta(usuario);
+                .Where(u => u.Id == id)
+                .Select(u => new UsuarioRespostaDTO
+                {
+                    Id = u.Id,
+                    NomeCompleto = u.NomeCompleto,
+                    Apelido = u.Apelido,
+                    Email = u.Email
+                })
+                .FirstOrDefaultAsync();
         }
 
         // Cria usuário (com hash de senha)
