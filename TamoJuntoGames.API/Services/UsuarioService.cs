@@ -1,13 +1,8 @@
 ﻿using System;
-using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using TamoJuntoGames.API.Data;
 using TamoJuntoGames.API.DTOs;
 using TamoJuntoGames.API.Models;
-using TamoJuntoGames.API.Options;
 
 
 namespace TamoJuntoGames.API.Services
@@ -17,12 +12,12 @@ namespace TamoJuntoGames.API.Services
     public class UsuarioService : IUsuarioService
     {
         private readonly AppDbContext _context;
-        private readonly JwtOptions _jwtOptions;
+        private readonly ITokenService _tokenService;
 
-        public UsuarioService(AppDbContext context, IOptions<JwtOptions> jwtOptions)
+        public UsuarioService(AppDbContext context, ITokenService tokenService)
         {
             _context = context;
-            _jwtOptions = jwtOptions.Value;
+            _tokenService = tokenService;
         }
 
         // Busca usuário por Id (sem senha)
@@ -130,7 +125,8 @@ namespace TamoJuntoGames.API.Services
                 return null;
 
             // 3) Gera token JWT
-            var token = GerarToken(usuario, out var expiraEm);
+            var (token, expiraEm) = _tokenService.GerarToken(
+                usuario.Id, usuario.Email, usuario.Apelido);
 
 
             // 4) Devolve usuário + token
@@ -152,34 +148,6 @@ namespace TamoJuntoGames.API.Services
                 Apelido = usuario.Apelido,
                 Email = usuario.Email
             };
-        }
-        // Gera um JWT para o usuário logado
-        private string GerarToken(Usuario usuario, out DateTime expiraEm)
-        {
-            expiraEm = DateTime.UtcNow.AddMinutes(_jwtOptions.ExpireMinutes);
-
-            // Claims = "informações" que vão dentro do token (quem é o usuário, etc.)
-            var claims = new List<Claim>
-            {
-                new Claim(JwtRegisteredClaimNames.Sub, usuario.Id.ToString()),
-                new Claim(JwtRegisteredClaimNames.Email, usuario.Email),
-                new Claim("apelido", usuario.Apelido)
-            };
-
-            // Monta a assinatura do token com a chave secreta
-            var key = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(_jwtOptions.Key));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-            // Cria o token
-            var jwtToken = new JwtSecurityToken(
-                issuer: _jwtOptions.Issuer,
-                audience: _jwtOptions.Audience,
-                claims: claims,
-                expires: expiraEm,
-                signingCredentials: creds
-            );
-
-            return new JwtSecurityTokenHandler().WriteToken(jwtToken);
         }
     }
 }

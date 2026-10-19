@@ -15,6 +15,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 // Services (DI)
 builder.Services.AddScoped<IUsuarioService, UsuarioService>();
+builder.Services.AddScoped<ITokenService, TokenService>();
 
 // Controllers
 builder.Services.AddControllers();
