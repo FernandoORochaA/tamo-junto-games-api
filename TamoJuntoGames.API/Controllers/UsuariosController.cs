@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using TamoJuntoGames.API.DTOs;
+using TamoJuntoGames.API.Exceptions;
 using TamoJuntoGames.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using System.IdentityModel.Tokens.Jwt;
@@ -34,7 +35,7 @@ namespace TamoJuntoGames.API.Controllers
 
             // 2. Se não existir, 404
             if (resposta == null)
-                return NotFound(new { mensagem = "Usuário não encontrado." });
+                return Problem(statusCode: StatusCodes.Status404NotFound, detail: "Usuário não encontrado.");
 
             // 3. Se existir, 200 OK
             return Ok(resposta);
@@ -54,7 +55,7 @@ namespace TamoJuntoGames.API.Controllers
 
             // 2. Se não achou, 404
             if (!deletou)
-                return NotFound(new { mensagem = "Usuário não encontrado." });
+                return Problem(statusCode: StatusCodes.Status404NotFound, detail: "Usuário não encontrado.");
 
             // 3. Se deletou, 204
             return NoContent();
@@ -76,15 +77,15 @@ namespace TamoJuntoGames.API.Controllers
 
                 // 2. Se não achou, 404
                 if (resposta == null)
-                    return NotFound(new { mensagem = "Usuário não encontrado." });
+                    return Problem(statusCode: StatusCodes.Status404NotFound, detail: "Usuário não encontrado.");
 
                 // 3. Se atualizou, 200 OK
                 return Ok(resposta);
             }
-            catch (InvalidOperationException ex)
+            catch (EmailDuplicadoException)
             {
-                // Regra de negócio (ex: e-mail já existe) -> 409 Conflict
-                return Conflict(new { mensagem = ex.Message });
+                return Problem(statusCode: StatusCodes.Status409Conflict,
+                    detail: EmailDuplicadoException.MensagemPublica);
             }
         }
 
@@ -106,18 +107,10 @@ namespace TamoJuntoGames.API.Controllers
                     resposta
                 );
             }
-            catch (InvalidOperationException ex)
+            catch (EmailDuplicadoException)
             {
-                // Regras do Service (ex: e-mails não coincidem, senha não coincide, e-mail repetido)
-                // Aqui a gente diferencia:
-                // - conflito (email repetido) -> 409
-                // - validação/regra de preenchimento -> 400
-                var msg = ex.Message;
-
-                if (msg.Contains("Já existe um usuário cadastrado") || msg.Contains("Já existe outro usuário"))
-                    return Conflict(new { mensagem = msg });
-
-                return BadRequest(new { mensagem = msg });
+                return Problem(statusCode: StatusCodes.Status409Conflict,
+                    detail: EmailDuplicadoException.MensagemPublica);
             }
         }
 
@@ -130,7 +123,8 @@ namespace TamoJuntoGames.API.Controllers
 
             // Se resposta do service for Null o email ta errado ou inexistente
             if (resposta == null)
-                return Unauthorized(new { mensagem = "E-mail ou senha inválidos." });
+                return Problem(statusCode: StatusCodes.Status401Unauthorized,
+                    detail: "E-mail ou senha inválidos.");
 
             // Se deu tudo certo, devolve 200 OK
             return Ok(resposta);

@@ -19,6 +19,7 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 
 // Controllers
 builder.Services.AddControllers();
+builder.Services.AddProblemDetails();
 
 // JWT (Authentication)
 builder.Services.AddOptions<JwtOptions>()
@@ -77,6 +78,24 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
     });
 
 var app = builder.Build();
+
+// Também em Development: detalhes internos ficam nos logs, não na resposta HTTP.
+app.UseExceptionHandler(errorApp => errorApp.Run(async context =>
+{
+    context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+    var problemDetails = context.RequestServices.GetRequiredService<IProblemDetailsService>();
+    // Se Accept não for suportado, mantemos 500 sem forçar serialização JSON.
+    await problemDetails.TryWriteAsync(new ProblemDetailsContext
+    {
+        HttpContext = context,
+        ProblemDetails = new Microsoft.AspNetCore.Mvc.ProblemDetails
+        {
+            Status = StatusCodes.Status500InternalServerError,
+            Title = "Ocorreu um erro inesperado."
+        }
+    });
+}));
+app.UseStatusCodePages();
 
 app.UseHttpsRedirection();
 

@@ -1,5 +1,8 @@
 ﻿using System;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
+using TamoJuntoGames.API.Exceptions;
 using TamoJuntoGames.API.Data;
 using TamoJuntoGames.API.DTOs;
 using TamoJuntoGames.API.Models;
@@ -13,11 +16,13 @@ namespace TamoJuntoGames.API.Services
     {
         private readonly AppDbContext _context;
         private readonly ITokenService _tokenService;
+        private readonly ILogger<UsuarioService> _logger;
 
-        public UsuarioService(AppDbContext context, ITokenService tokenService)
+        public UsuarioService(AppDbContext context, ITokenService tokenService, ILogger<UsuarioService> logger)
         {
             _context = context;
             _tokenService = tokenService;
+            _logger = logger;
         }
 
         // Busca usuário por Id (sem senha)
@@ -44,7 +49,7 @@ namespace TamoJuntoGames.API.Services
                 .AnyAsync(u => u.EmailNormalizado == emailNormalizado);
 
             if (emailJaExiste)
-                throw new InvalidOperationException("Já existe um usuário cadastrado com esse e-mail.");
+                throw new EmailDuplicadoException();
 
             // Cria o usuário (senha vira hash)
             var novoUsuario = new Usuario
@@ -57,7 +62,7 @@ namespace TamoJuntoGames.API.Services
             };
 
             _context.Usuarios.Add(novoUsuario);
-            await _context.SaveChangesAsync();
+            await SalvarComVerificacaoDeEmailAsync(emailNormalizado);
 
             return ParaResposta(novoUsuario);
         }
@@ -79,7 +84,7 @@ namespace TamoJuntoGames.API.Services
                 .AnyAsync(u => u.EmailNormalizado == emailNormalizado && u.Id != id);
 
             if (emailJaExiste)
-                throw new InvalidOperationException("Já existe outro usuário com esse e-mail.");
+                throw new EmailDuplicadoException();
 
             // Atualiza
             usuario.NomeCompleto = dto.NomeCompleto;
@@ -87,9 +92,43 @@ namespace TamoJuntoGames.API.Services
             usuario.Email = email;
             usuario.EmailNormalizado = emailNormalizado;
 
-            await _context.SaveChangesAsync();
+            await SalvarComVerificacaoDeEmailAsync(emailNormalizado, id);
 
             return ParaResposta(usuario);
+        }
+
+        private async Task SalvarComVerificacaoDeEmailAsync(string emailNormalizado, int? usuarioId = null)
+        {
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex) when (ex.InnerException is SqliteException
+                { SqliteErrorCode: 19, SqliteExtendedErrorCode: 2067 })
+            {
+                // O código identifica UNIQUE, não o índice. Confirmamos o conflito de domínio.
+                // A consulta não prova qual índice originou a falha se houver outros UNIQUE.
+                var emailJaExiste = false;
+                try
+                {
+                    emailJaExiste = await _context.Usuarios.AnyAsync(usuario =>
+                        usuario.EmailNormalizado == emailNormalizado &&
+                        (usuarioId == null || usuario.Id != usuarioId));
+                }
+                catch (Exception falhaConfirmacao)
+                {
+                    // Restrito à consulta após UNIQUE: preserva a falha original no throw abaixo.
+                    // Não registrar a exceção/mensagem, SQL ou valores do usuário.
+                    _logger.LogWarning(new EventId(1001, "FalhaConfirmacaoDuplicidadeEmail"),
+                        "Falha na confirmação de duplicidade após UNIQUE. Tipo secundário: {TipoExcecao}.",
+                        falhaConfirmacao.GetType().FullName);
+                }
+
+                if (emailJaExiste)
+                    throw new EmailDuplicadoException(ex);
+
+                throw;
+            }
         }
 
         // Deleta usuário
