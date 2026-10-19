@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TamoJuntoGames.API\TamoJuntoGames.API.csproj" />
+    <ProjectReference Include="..\tools\EmailIdentityDiagnostic\EmailIdentityDiagnostic.csproj" />
   </ItemGroup>
 
 </Project>
