@@ -67,13 +67,23 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
         {
             OnAuthenticationFailed = context =>
             {
-                Console.WriteLine("JWT Auth failed: " + context.Exception);
+                var logger = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("TamoJuntoGames.API.Authentication.JwtBearer");
+                var motivo = context.Exception is SecurityTokenExpiredException
+                    ? "TokenExpirado" : "TokenRejeitado";
+                logger.LogWarning(new EventId(1003, "JwtAuthenticationFailed"),
+                    "Falha na autenticação JWT. Motivo: {Motivo}.", motivo);
                 return Task.CompletedTask;
             },
             OnChallenge = context =>
             {
-                Console.WriteLine("JWT Challenge error: " + context.Error);
-                Console.WriteLine("JWT Challenge desc: " + context.ErrorDescription);
+                // Uma falha de token já foi registrada em OnAuthenticationFailed.
+                if (context.AuthenticateFailure is not null)
+                    return Task.CompletedTask;
+
+                var logger = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("TamoJuntoGames.API.Authentication.JwtBearer");
+                logger.LogDebug(new EventId(1004, "JwtChallenge"), "Autenticação JWT requerida.");
                 return Task.CompletedTask;
             }
         };
